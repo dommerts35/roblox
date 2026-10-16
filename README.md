@@ -104,6 +104,7 @@ Todo se controla desde **`src/shared/Config.lua`** (y su copia dentro de
 | `Arena` | Tamaño del cuadrado, alto y grosor de muros, ancho del hueco de portería (`GoalWidth`), pilares |
 | `Slide` | Velocidad de deslizamiento, distancia de la línea, límites laterales |
 | `Paddle` | **Rectángulo de cada jugador**: largo (`Width`), alto (`Height`), grosor (`Depth`) y hueco bajo la pala |
+| `Hit` | **Golpe de la pala**: con qué fuerza lanza la bola hacia el centro (`Speed`), cuánto apunta al golpear en una punta (`Aim`), alcance por delante de la cara (`Reach`) y enfriamiento por bola |
 | `Ball` | Bolas iniciales (`StartMin`/`StartMax`), ritmo de subida (`GrowEvery`) y tope (`MaxAlive`), tamaño de lote (`Batch`), velocidad, rebote, fricción |
 | `Tilt` | **Inclinación de la mesa**: ángulo mínimo/máximo, cada cuánto cambia (`Step`), fuerza del tirón (`Jitter`), latido (`Pulse`/`WobbleSpeed`), giro base (`TurnSpeed`) y frecuencia de actualización |
 | `Match` | **Vidas iniciales** (`StartLives`) y pausa antes de reiniciar |
@@ -118,7 +119,9 @@ del suelo: si lo subes, sube también `Camera.Height`.
 
 Ojo con el pico de bolas: con `MaxAlive = 100` las bolas entran en tandas y las
 **30 vidas se agotan en segundos**. Si quieres partidas más largas, sube
-`Match.StartLives`, baja `Ball.MaxAlive` o alarga `Ball.GrowEvery`.
+`Match.StartLives`, baja `Ball.MaxAlive` o alarga `Ball.GrowEvery`. El golpe de
+la pala acelera aún más la cosa: si ves que las vidas vuelan, baja `Hit.Speed`
+(150 por defecto, sobre un tope de bola de 180) o sube `Match.StartLives`.
 
 Ojo: subir `GoalWidth` es seguro, pero si cambias `Arena.Size` tienes que reescalar
 a mano `Slide.LaneDistance` y `Slide.LaneLimit` para que la línea del jugador siga
@@ -198,6 +201,16 @@ python tools/build.py
   el muro sin caja detrás, y el servidor comprueba cada frame si alguna bola ha
   cruzado el plano del muro dentro del ancho del hueco. Al instante la bola se
   elimina, así que es imposible que rebote y vuelva a salir.
+- El **golpe de la pala** también va por posición, con la bola pasada al espacio de
+  la pala (`PointToObjectSpace`): si está delante de la cara que mira al centro,
+  dentro del ancho y el alto y a menos de `Hit.Reach` studs, el servidor le pone
+  una velocidad nueva hacia el centro. El sensor no se pierde ninguna bola rápida
+  porque el alcance es mayor que lo que avanza una bola en un frame (a
+  `MaxSpeed = 180`, 3 studs por frame). Como el rectángulo va tumbado con la mesa,
+  su `LookVector` sigue el plano del suelo y el tiro sale bien con cualquier
+  inclinación. El desvío se calcula con la punta de la pala con la que se golpea
+  (`lp.X`), así que se puede apuntar a un lado o a otro. Cada bola lleva un
+  enfriamiento (`Hit.Cooldown`) para que no se re-dispare sola.
 - El personaje es la "pala": `WalkSpeed = 0`, sin salto, sin auto-rotación, con
   `PlatformStand` activado y con la velocidad lateral impuesta por el controlador.
 - Los scripts usan sintaxis compatible con Lua 5.1/Luau y se validaron con un

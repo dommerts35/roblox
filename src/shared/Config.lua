@@ -69,6 +69,18 @@ Config.Paddle = {
 	Gap = 0.5,              -- hueco bajo la pala, para que las piernas toquen
 }
 
+-- Golpe de la pala -----------------------------------------------------
+-- Cuando la cara delantera de la pala (la que mira al centro de la mesa)
+-- toca una bola, el servidor la lanza hacia el centro con fuerza. El punto
+-- del ancho donde le da desvia el tiro, asi que se puede apuntar.
+Config.Hit = {
+	Enabled = true,
+	Speed = 150,            -- velocidad a la que sale la bola (studs/segundo)
+	Aim = 80,               -- desvio maximo al golpear en un extremo de la pala
+	Reach = 4,              -- studs por delante de la cara que cuentan como toque
+	Cooldown = 0.15,        -- segundos entre dos golpes a la misma bola
+}
+
 -- Partida --------------------------------------------------------------
 -- Cada jugador tiene vidas. Cada vez que una bola entra en su porteria
 -- (da igual quien la metio) pierde 1 vida. Al llegar a 0 se acaba la

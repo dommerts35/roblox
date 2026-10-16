@@ -30,11 +30,14 @@ local SLIDE = Config.Slide
 local BALL = Config.Ball
 local MATCH = Config.Match
 local TILT = Config.Tilt
+local HIT = Config.Hit
+local PADDLE = Config.Paddle
 
 -- Estado ---------------------------------------------------------------
 local sideOwner = {}   -- [lado] = Player
 local playerSide = {}  -- [Player] = lado
 local lives = {}       -- [lado] = vidas restantes
+local paddles = {}     -- [lado] = pala del jugador que ocupa ese lado
 local stuckTime = {}   -- [bola] = segundos parada
 local currentTilt = CFrame.new(0, 0, 0) -- inclinacion actual de la arena
 local matchOver = false
@@ -171,7 +174,7 @@ local function setupCharacter(player, character)
 
 	character:PivotTo(Config.laneCFrame(side, 0, currentTilt))
 	hideCharacter(character)
-	buildPaddle(character, humanoid, root, SIDES[side].Color)
+	paddles[side] = buildPaddle(character, humanoid, root, SIDES[side].Color)
 end
 
 -- Inclinacion de la plataforma ----------------------------------------
@@ -338,8 +341,62 @@ local function goalSideOf(ball)
 	return nil
 end
 
--- Goles y tope de velocidad de las bolas, una vez por frame.
+-- Golpes de la pala ----------------------------------------------------
+-- La cara delantera de la pala es la que mira al centro de la mesa. Se
+-- mira por posicion (igual que los goles): se pasa la bola al espacio de
+-- la pala y, si esta dentro del ancho y del alto y a menos de Reach studs
+-- de esa cara, sale disparada hacia el centro. Como la pala va tumbada
+-- con la mesa, su LookVector sigue el plano del suelo, asi que el tiro
+-- sale en la direccion buena con cualquier inclinacion.
+-- El punto del ancho donde le da desvia el tiro a un lado o a otro, de
+-- modo que el jugador puede apuntar golpeando con una punta de la pala.
+
+local function paddleHits()
+	if not HIT.Enabled then return end
+
+	local now = time()
+	local front = -(PADDLE.Depth / 2)      -- cara delantera, en local
+	local halfW = PADDLE.Width / 2
+	local halfH = PADDLE.Height / 2
+
+	for side = 1, #SIDES do
+		local pad = paddles[side]
+		-- pad.Parent es nil si el jugador esta reapareciendo o se ha ido.
+		if pad and pad.Parent then
+			local cf = pad.CFrame
+
+			for _, ball in ipairs(Balls:GetChildren()) do
+				if ball:IsA("BasePart") then
+					local r = ball.Size.X / 2
+					local lp = cf:PointToObjectSpace(ball.Position)
+
+					-- Delante de la cara delantera, a lo sumo Reach
+					-- studs por delante (asi no se le escapa una bola
+					-- rapida) y dentro del ancho y el alto de la pala.
+					if lp.Z <= front + r
+						and lp.Z >= front - r - HIT.Reach
+						and math.abs(lp.X) <= halfW + r
+						and math.abs(lp.Y) <= halfH + r then
+						local last = ball:GetAttribute("Golpe")
+						if not last or now - last >= HIT.Cooldown then
+							ball:SetAttribute("Golpe", now)
+
+							local aim = math.clamp(lp.X / halfW, -1, 1)
+							ball.AssemblyLinearVelocity =
+								cf.LookVector * HIT.Speed
+								+ cf.RightVector * (aim * HIT.Aim)
+						end
+					end
+				end
+			end
+		end
+	end
+end
+
+-- Goles, golpes de pala y tope de velocidad de las bolas, una vez por
+-- frame.
 RunService.Heartbeat:Connect(function()
+	paddleHits()
 	for _, ball in ipairs(Balls:GetChildren()) do
 		if ball:IsA("BasePart") then
 			local side = goalSideOf(ball)
@@ -508,6 +565,7 @@ local function onPlayerRemoving(player)
 	local side = playerSide[player]
 	if side then
 		sideOwner[side] = nil
+		paddles[side] = nil
 	end
 	playerSide[player] = nil
 	broadcastState()
