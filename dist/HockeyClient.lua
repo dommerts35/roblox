@@ -176,6 +176,27 @@ local function updateCamera(side)
 	camera.CFrame = CFrame.lookAt(pos, Vector3.new(0, 0, 0))
 end
 
+-- Suelo de la mesa -----------------------------------------------------
+-- La pala se pega a la superficie midiendo con un rayo contra la arena, en
+-- vez de calcular la inclinacion: asi queda clavada en la mesa tal y como
+-- se ve, por muy brusco que sea el tiron de la plataforma. Sin esto, un
+-- cambio fuerte del suelo la dejaba en el aire o la colaba por debajo.
+
+local arena = workspace:WaitForChild("Arena", 30)
+
+local groundParams = RaycastParams.new()
+groundParams.FilterType = Enum.RaycastFilterType.Include
+groundParams.FilterDescendantsInstances = { arena }
+groundParams.IgnoreWater = true
+
+local GROUND_CLEARANCE = 0.1  -- holgura de los pies sobre el suelo
+
+-- Punto de la mesa justo debajo de (x, z), o nil si no hay nada.
+local function groundBelow(x, z)
+	if not arena then return nil end
+	return workspace:Raycast(Vector3.new(x, 60, z), Vector3.new(0, -140, 0), groundParams)
+end
+
 -- Controles ------------------------------------------------------------
 
 local KEYS_PLUS = { Enum.KeyCode.D, Enum.KeyCode.Right, Enum.KeyCode.W, Enum.KeyCode.Up }
@@ -209,7 +230,8 @@ local lastSide = nil
 local function drivePaddle(side, dir)
 	local character = player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart")
-	if not root then return end
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if not root or not humanoid then return end
 
 	local rot = Config.sideRotation(side)
 	local along = rot.RightVector    -- eje del lado
@@ -232,12 +254,34 @@ local function drivePaddle(side, dir)
 	aerr = math.clamp(aerr, -SLIDE.ReturnMax, SLIDE.ReturnMax)
 
 	local target = along * (dir * SLIDE.Speed + aerr) + outward * perr
-	local vel = root.AssemblyLinearVelocity
-	root.AssemblyLinearVelocity = Vector3.new(target.X, vel.Y, target.Z)
 
-	-- Mantiene la pala recta y alineada con su lado: el rectangulo que se
-	-- ve va soldado al root, asi que si el root gira, la pala gira.
-	root.CFrame = CFrame.new(pos) * rot.Rotation
+	-- Solo se mueve en horizontal: la vertical la manda el pegamento al
+	-- suelo, asi que ni la gravedad ni un tiron de la mesa la levantan.
+	root.AssemblyLinearVelocity = Vector3.new(target.X, 0, target.Z)
+
+	-- Pega la pala a la mesa: los pies sobre la superficie y la pala
+	-- tumbada con la misma inclinacion que el suelo (asi no se hunde un
+	-- borde ni se queda flotando el otro).
+	local hit = groundBelow(pos.X, pos.Z)
+	if hit then
+		local up = hit.Normal
+		-- El eje de la linea proyectado sobre el plano del suelo.
+		local right = along - up * along:Dot(up)
+		if right.Magnitude < 0.01 then
+			right = along
+		end
+		right = right.Unit
+
+		local feet = character:GetAttribute("FeetOffset")
+			or (humanoid.HipHeight + root.Size.Y / 2)
+		local y = hit.Position.Y + GROUND_CLEARANCE + feet
+		root.CFrame = CFrame.fromMatrix(
+			Vector3.new(pos.X, y, pos.Z), right, up, right:Cross(up)
+		)
+	else
+		-- Sin suelo debajo (no deberia pasar): recta donde estaba.
+		root.CFrame = CFrame.new(pos) * rot.Rotation
+	end
 end
 
 RunService.RenderStepped:Connect(function()

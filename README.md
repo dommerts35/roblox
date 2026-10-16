@@ -170,17 +170,27 @@ python tools/build.py
   necesita guardar estado (cualquier instante se puede recalcular igual).
 - El jugador es un **personaje invisible** con un **rectángulo soldado**
   (`WeldConstraint`) a su `HumanoidRootPart`: el cuerpo sigue chocando (así el
-  humanoid se apoya en el suelo como cualquier personaje) pero no se ve, y el
+  conjunto se apoya en el suelo como cualquier personaje) pero no se ve, y el
   rectángulo lo cubre entero, de modo que lo que se ve y lo que golpea coinciden.
-  Se le quita el `Animate` para que no se meneen las animaciones, y se le apaga el
-  nombre y la barra de vida.
+  Se le quita el `Animate` para que no se meneen las animaciones, se le apaga el
+  nombre y la barra de vida, y se le pone `PlatformStand` para que el humanoid no
+  intente mantenerse de pie (peleaba con la inclinación de la mesa).
+- La pala va **pegada a la superficie**: el cliente lanza cada frame un rayo hacia
+  abajo contra la `Arena`, apoya los pies en el punto donde ha dado y tumba el
+  rectángulo con la normal del suelo, así que por muy brusco que sea el tirón de
+  la plataforma nunca se queda en el aire ni se cuela por debajo de la mesa (y
+  choca contra la mesa de verdad, no contra un plano calculado a mano).
+- El servidor no adivina la altura del rig: guarda en el atributo `FeetOffset`
+  cuánto hay del root a la planta de los pies (medido con el *bounding box*), y ese
+  valor sirve igual para personajes R6 y R15.
 - Los jugadores **no resbalan** con la inclinación: el controlador fija cada frame
-  su velocidad en el plano XZ (solo se deja libre la Y, que sigue siendo la
-  gravedad), así que la componente horizontal de la gravedad nunca les afecta.
+  su velocidad en el plano XZ y su posición vertical, así que ni la componente
+  horizontal ni la vertical de la gravedad les afecta.
 - El deslizamiento lo resuelve **el cliente** (respuesta inmediata) escribiendo
   `AssemblyLinearVelocity` sobre su propio personaje; el servidor comprueba cada
-  0,5 s que nadie se salga de su zona y lo devuelve a su línea, teniendo en cuenta
-  la inclinación actual para no dejarlo bajo el suelo.
+  0,5 s que nadie se salga de su zona (ni a lo largo, ni hacia fuera, ni en altura)
+  y lo devuelve a su línea, teniendo en cuenta la inclinación actual para no dejarlo
+  bajo el suelo.
 - Las **bolas y su física son del servidor**, así que todos ven los mismos
   rebotes y goles. Su velocidad está topada en `Config.Ball.MaxSpeed` para que no
   atraviesen los muros a alta velocidad.
@@ -188,7 +198,7 @@ python tools/build.py
   el muro sin caja detrás, y el servidor comprueba cada frame si alguna bola ha
   cruzado el plano del muro dentro del ancho del hueco. Al instante la bola se
   elimina, así que es imposible que rebote y vuelva a salir.
-- El personaje es la "pala": `WalkSpeed = 0`, sin salto y sin auto-rotación, con
-  la velocidad lateral impuesta por el controlador.
+- El personaje es la "pala": `WalkSpeed = 0`, sin salto, sin auto-rotación, con
+  `PlatformStand` activado y con la velocidad lateral impuesta por el controlador.
 - Los scripts usan sintaxis compatible con Lua 5.1/Luau y se validaron con un
   parser antes de generar el instalador.

@@ -106,6 +106,10 @@ local function buildPaddle(character, humanoid, root, color)
 
 	local offsetY = (feetY + P.Gap + P.Height / 2) - root.Position.Y
 
+	-- De cuanto es el root a los pies: el cliente lo usa para pegar la pala
+	-- al suelo sin tener que adivinar la altura del rig (R6/R15).
+	character:SetAttribute("FeetOffset", root.Position.Y - feetY)
+
 	local pad = Instance.new("Part")
 	pad.Name = "Pala"
 	pad.Size = Vector3.new(P.Width, P.Height, P.Depth)
@@ -151,6 +155,13 @@ local function setupCharacter(player, character)
 	humanoid.UseJumpPower = true
 	humanoid.JumpPower = 0
 	humanoid.AutoRotate = false
+	-- El personaje no camina: es una pala que movemos nosotros. Con
+	-- PlatformStand el humanoid deja de intentar mantenerse de pie, que es
+	-- lo que peleaba con la inclinacion de la mesa.
+	humanoid.PlatformStand = true
+	-- El pivote del modelo es el root, para que PivotTo lo deje donde
+	-- decimos (el rectangulo soldado no debe desviar el pivote).
+	character.PrimaryPart = root
 	-- Nada de nombre ni barra de vida flotando sobre el rectangulo.
 	humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
 	pcall(function()
@@ -200,7 +211,15 @@ task.spawn(function()
 				local pos = root.Position
 				local a = pos:Dot(rot.RightVector)
 				local p = pos:Dot(-rot.LookVector)
-				if math.abs(a) > SLIDE.LaneLimit + SLIDE.ResetMargin
+
+				-- Red de seguridad vertical: si el cliente no lo ha podido
+				-- pegar al suelo (lag, un tiron muy brusco...), lo hacemos
+				-- nosotros con la inclinacion que manda el servidor.
+				local feet = character:GetAttribute("FeetOffset") or 3
+				local floorY = Config.surfaceHeight(currentTilt, pos.X, pos.Z) + ARENA.FloorTop
+
+				if math.abs((pos.Y - feet) - floorY) > 8
+					or math.abs(a) > SLIDE.LaneLimit + SLIDE.ResetMargin
 					or p > SLIDE.LaneDistance + SLIDE.ResetMargin
 					or p < 4 then
 					character:PivotTo(
