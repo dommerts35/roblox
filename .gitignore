@@ -1,0 +1,10 @@
+# Roblox Studio: lo crea al abrir el place, no se versiona
+*.rbxl.lock
+
+# Basura del sistema
+Thumbs.db
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
