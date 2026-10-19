@@ -82,11 +82,12 @@ pero tarda 3 s en vez de 1,5.
   neón del color del lado y su línea de deslizamiento en el suelo.
 - **Las bolas van a más, pero no son infinitas**: la partida arranca con **3-5
   bolas** y cada 2 s el tope sube una más, hasta un máximo de **10 bolas** a la vez.
-  Son grandes (**7 studs** de diámetro), así que se ven bien y no se cuelan por el
-  suelo. Los **4 pilares** de las esquinas las lanzan hacia el centro con ángulo
-  aleatorio y se van turnando, así que un lote nunca sale entero del mismo pilar.
-  Y, como en Ballistix, **las que ya ruedan también ganan velocidad** poco a poco
-  (+4 %/s, hasta el tope de 180), así que la partida se calienta sola.
+  Son grandes (**7 studs** de diámetro) y ligeras (**densidad 0,15**), así que se ven
+  bien, no se cuelan por el suelo y salen disparadas con solo tocarlas. Los **4
+  pilares** de las esquinas las lanzan hacia el centro con ángulo aleatorio y se van
+  turnando, así que un lote nunca sale entero del mismo pilar. Y, como en Ballistix,
+  **las que ya ruedan también ganan velocidad** poco a poco (+4 %/s, hasta el tope de
+  180), así que la partida se calienta sola.
 - La **mesa se inclina sola**: cada 0,9 s elige al azar un ángulo nuevo (entre 7° y
   15°) y una dirección nueva, girando unas **28°/s de media** (picos de ~87°/s). Se
   mueve lo justo para que la gravedad cambie de rumbo sin avisar y las bolas rueden
@@ -129,7 +130,7 @@ Todo se controla desde **`src/shared/Config.lua`** (y su copia dentro de
 | `Slide` | Velocidad de deslizamiento, distancia de la línea, límites laterales |
 | `Paddle` | **Rectángulo de cada jugador**: largo (`Width`), alto (`Height`), grosor (`Depth`) y hueco bajo la pala |
 | `Hit` | **Pulso de energía**: fuerza (`Power`), cuánto apunta al golpear en una punta (`Aim`), alcance por delante de la cara (`Reach`), ventana para acertar (`PulseWindow`), recarga al acertar (`Recharge`) y bloqueo al fallar (`PulseLock`) |
-| `Ball` | Tamaño (`Diameter`), bolas iniciales (`StartMin`/`StartMax`), ritmo de subida (`GrowEvery`) y tope (`MaxAlive`), tamaño de lote (`Batch`), velocidad, **aceleración con el tiempo** (`SpeedRamp`), rebote, fricción |
+| `Ball` | Tamaño (`Diameter`), peso (`Density`), bolas iniciales (`StartMin`/`StartMax`), ritmo de subida (`GrowEvery`) y tope (`MaxAlive`), tamaño de lote (`Batch`), velocidad, **aceleración con el tiempo** (`SpeedRamp`), rebote, fricción |
 | `Tilt` | **Inclinación de la mesa**: ángulo mínimo/máximo, cada cuánto cambia (`Step`), fuerza del tirón (`Jitter`), latido (`Pulse`/`WobbleSpeed`), giro base (`TurnSpeed`) y frecuencia de actualización |
 | `Match` | **Puntos iniciales** (`StartLives`) y pausa antes de reiniciar |
 | `Camera` | Altura, distancia y campo de visión de la cámara |

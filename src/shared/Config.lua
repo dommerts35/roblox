@@ -44,7 +44,11 @@ Config.Ball = {
 	LaunchSpeed = 62,
 	LaunchUp = 6,
 	SpreadDeg = 26,         -- dispersion del disparo del pilar
-	Density = 0.5,
+	-- Densidad = peso. Bajarla hace las bolas mas ligeras: salen igual de
+	-- rapido (la gravedad y el pulso no dependen del peso) pero empujan
+	-- mucho menos, rebotan mas entre ellas y la pala las mueve con solo
+	-- tocarlas.
+	Density = 0.15,
 	Friction = 0.05,
 	Elasticity = 0.85,
 	MaxSpeed = 180,         -- tope de velocidad (evita atravesar muros)
