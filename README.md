@@ -81,7 +81,7 @@ pero tarda 3 s en vez de 1,5.
   (nunca puede rebotar ni volver a salir). El hueco está marcado con un marco de
   neón del color del lado y su línea de deslizamiento en el suelo.
 - **Las bolas van a más, pero no son infinitas**: la partida arranca con **3-5
-  bolas** y cada 2 s el tope sube una más, hasta un máximo de **15 bolas** a la vez.
+  bolas** y cada 2 s el tope sube una más, hasta un máximo de **10 bolas** a la vez.
   Son grandes (**7 studs** de diámetro), así que se ven bien y no se cuelan por el
   suelo. Los **4 pilares** de las esquinas las lanzan hacia el centro con ángulo
   aleatorio y se van turnando, así que un lote nunca sale entero del mismo pilar.
@@ -143,7 +143,7 @@ borde barre más de 4 studs por frame y las bolas empiezan a atravesar el suelo 
 eso están los valores que hay). Por encima de ~18° el muro cercano ya tapa parte
 del suelo: si lo subes, sube también `Camera.Height`.
 
-Ojo con el ritmo: con 15 bolas a la vez y el pulso, los **30 puntos se gastan
+Ojo con el ritmo: con 10 bolas a la vez y el pulso, los **30 puntos se gastan
 rápido**. Si quieres rondas más largas, sube `Match.StartLives`, baja
 `Ball.MaxAlive` o alarga `Ball.GrowEvery`. Como el eliminado se queda fuera hasta
 que acaba la ronda, si te resulta duro sube los puntos iniciales. Y si quieres algo
