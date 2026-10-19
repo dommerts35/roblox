@@ -102,9 +102,10 @@ que ves en pantalla, así que "izquierda en pantalla" siempre es la misma tecla.
 - Cuando alguien se queda a **0, su nave explota y queda eliminado**: sigue mirando
   la mesa desde su lado, pero ya no juega. **Gana el último que quede con puntos** y,
   tras unos segundos, todos vuelven a 30 y el contador de bolas otra vez a 3-5. No
-  hay límite de tiempo. Las porterías vacías que se quedan a 0 no dan la ronda por
-  ganada: solo se cierra cuando cae un jugador y no queda ningún otro con puntos (si
-  juegas tú solo, la ronda acaba contigo, como es lógico).
+  hay límite de tiempo: la ronda se cierra **en cuanto solo queda un lado con
+  puntos**, haya jugador detrás o no, así que si los otros tres se van a 0 y tú
+  sigues con puntos, ganas al momento. También se cierra si cae el último jugador que
+  quedaba, para no quedarte de espectador mirando porterías vacías.
 - Si entran más de 4 jugadores, los extra aparecen como **espectadores** en la
   grada (pueden caminar por ahí).
 

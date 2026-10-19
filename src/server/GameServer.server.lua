@@ -277,20 +277,31 @@ end
 
 -- Goles y vidas --------------------------------------------------------
 -- Como en Ballistix: el que se queda a 0 puntos explota y queda fuera de
--- la mesa, y gana el ultimo que siga jugando. No hay limite de tiempo.
+-- la mesa, y gana el ultimo que siga con puntos. No hay limite de tiempo.
 
--- Lados que siguen en juego: con dueno, con puntos y sin haber caido. Una
--- porteria vacia no cuenta: si nadie la defiende no compite, y sus goles no
--- pueden dar por ganada la ronda a otro.
-local function aliveSides()
+-- Lados que aun tienen puntos, tengan jugador o no. Es lo que decide el
+-- ganador: cuando solo queda uno, ese gana (asi, si tu eres el unico que
+-- sigue con puntos, ganas aunque las porterias vacias se hayan ido a 0).
+local function sidesWithPoints()
 	local count, last = 0, nil
 	for i = 1, #SIDES do
-		if sideOwner[i] and lives[i] > 0 and not eliminated[i] then
+		if lives[i] > 0 then
 			count = count + 1
 			last = i
 		end
 	end
 	return count, last
+end
+
+-- Jugadores que siguen en pie (con dueno y con puntos).
+local function playersAlive()
+	local n = 0
+	for i = 1, #SIDES do
+		if sideOwner[i] and lives[i] > 0 then
+			n = n + 1
+		end
+	end
+	return n
 end
 
 
@@ -359,12 +370,13 @@ local function eliminateSide(side)
 	-- eliminado se queda mostrando sus puntos en vez de "--".
 	broadcastState()
 
-	-- La ronda solo se acaba cuando cae un jugador de verdad y ya no queda
-	-- ninguno mas con puntos. Si la que se queda a 0 es una porteria vacia no
-	-- se acaba nada: no hay nadie a quien dar por ganador.
-	local alive, last = aliveSides()
-	if player and alive <= 1 then
-		endRound(last)
+	-- Se acaba la ronda cuando ya solo queda un lado con puntos (ese gana) o
+	-- cuando ya no queda ningun jugador en pie. Asi, si las otras porterias se
+	-- van a 0 y tu sigues con puntos, ganas en el acto; y si caes tu antes, la
+	-- ronda tambien termina (no te quedas de espectador para siempre).
+	local left, winner = sidesWithPoints()
+	if left <= 1 or playersAlive() == 0 then
+		endRound(left == 1 and winner or nil)
 	end
 
 	-- Reaparece como espectador (setupCharacter lo detecta).
