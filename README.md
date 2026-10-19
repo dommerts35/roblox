@@ -74,17 +74,19 @@ que ves en pantalla, así que "izquierda en pantalla" siempre es la misma tecla.
   sin caja, suelo ni pared detrás, así que la bola que entra desaparece en el acto
   (nunca puede rebotar ni volver a salir). El hueco está marcado con un marco de
   neón del color del lado y su línea de deslizamiento en el suelo.
-- **Las bolas van a más**: la partida arranca con **3-5 bolas** y cada 2 s el tope
-  sube una más, hasta un máximo de **100 bolas** a la vez. Los **4 pilares** de las
-  esquinas las lanzan hacia el centro con ángulo aleatorio y se van turnando, así
-  que un lote nunca sale entero del mismo pilar. Y, como en Ballistix, **las que ya
-  ruedan también ganan velocidad** poco a poco (+4 %/s, hasta el tope de 180), así
-  que la partida se calienta sola.
-- La **mesa se inclina sola y a tirones**: cada 0,35 s elige al azar un ángulo
-  nuevo (entre 7° y 15°) y una dirección nueva, con un giro constante por debajo
-  que gira unas **150°/s de media** con picos de más de 600°/s. Nada de vaivenes
-  suaves: la gravedad cambia de rumbo sin avisar y las bolas salen disparadas a
-  cualquier parte. Los jugadores no resbalan: siguen clavados en su línea.
+- **Las bolas van a más, pero no son infinitas**: la partida arranca con **3-5
+  bolas** y cada 2 s el tope sube una más, hasta un máximo de **15 bolas** a la vez.
+  Son grandes (**7 studs** de diámetro), así que se ven bien y no se cuelan por el
+  suelo. Los **4 pilares** de las esquinas las lanzan hacia el centro con ángulo
+  aleatorio y se van turnando, así que un lote nunca sale entero del mismo pilar.
+  Y, como en Ballistix, **las que ya ruedan también ganan velocidad** poco a poco
+  (+4 %/s, hasta el tope de 180), así que la partida se calienta sola.
+- La **mesa se inclina sola**: cada 0,9 s elige al azar un ángulo nuevo (entre 7° y
+  15°) y una dirección nueva, girando unas **28°/s de media** (picos de ~87°/s). Se
+  mueve lo justo para que la gravedad cambie de rumbo sin avisar y las bolas rueden
+  solas, pero sin ir más rápida que la física: antes el borde de la mesa barría
+  hasta **13,7 studs por frame** y atravesaba las bolas; ahora barre 1,6 como mucho.
+  Los jugadores no resbalan: siguen clavados en su línea.
 - Tu rectángulo **rebota** la bola con su propia física: cuanto más rápida venga,
   más rápida sale. No hay ningún golpe mágico por el simple hecho de tocarla.
 - **Pulso de energía** (`Espacio` / `Cuadrado`): el único golpe fuerte. Carga una
@@ -115,25 +117,26 @@ Todo se controla desde **`src/shared/Config.lua`** (y su copia dentro de
 | `Slide` | Velocidad de deslizamiento, distancia de la línea, límites laterales |
 | `Paddle` | **Rectángulo de cada jugador**: largo (`Width`), alto (`Height`), grosor (`Depth`) y hueco bajo la pala |
 | `Hit` | **Pulso de energía**: fuerza (`Power`), cuánto apunta al golpear en una punta (`Aim`), alcance por delante de la cara (`Reach`), ventana para acertar (`PulseWindow`) y bloqueo al fallar (`PulseLock`) |
-| `Ball` | Bolas iniciales (`StartMin`/`StartMax`), ritmo de subida (`GrowEvery`) y tope (`MaxAlive`), tamaño de lote (`Batch`), velocidad, **aceleración con el tiempo** (`SpeedRamp`), rebote, fricción |
+| `Ball` | Tamaño (`Diameter`), bolas iniciales (`StartMin`/`StartMax`), ritmo de subida (`GrowEvery`) y tope (`MaxAlive`), tamaño de lote (`Batch`), velocidad, **aceleración con el tiempo** (`SpeedRamp`), rebote, fricción |
 | `Tilt` | **Inclinación de la mesa**: ángulo mínimo/máximo, cada cuánto cambia (`Step`), fuerza del tirón (`Jitter`), latido (`Pulse`/`WobbleSpeed`), giro base (`TurnSpeed`) y frecuencia de actualización |
 | `Match` | **Puntos iniciales** (`StartLives`) y pausa antes de reiniciar |
 | `Camera` | Altura, distancia y campo de visión de la cámara |
 | `Sides` | Nombre y color de cada lado |
 
 Para **quitar la inclinación** pon `Config.Tilt.Enabled = false` (la mesa se queda
-plana). Para más caos todavía: baja `Step` (cambia de idea más a menudo), sube
-`Jitter` (tirones más brutales, ±1,1 rad por defecto), sube `TurnSpeed` (giro base
-más rápido) o sube `MaxDegrees`. Por encima de ~18° el muro cercano ya tapa parte
+plana). Si la quieres más viva: baja `Step` (cambia de idea más a menudo), sube
+`Jitter` (tirones más brutales, ±0,35 rad por defecto), sube `TurnSpeed` (giro base
+más rápido) o sube `MaxDegrees`. **Cuidado**: si la mesa gira más de ~150°/s el
+borde barre más de 4 studs por frame y las bolas empiezan a atravesar el suelo (por
+eso están los valores que hay). Por encima de ~18° el muro cercano ya tapa parte
 del suelo: si lo subes, sube también `Camera.Height`.
 
-Ojo con el pico de bolas: con `MaxAlive = 100` las bolas entran en tandas y los
-**30 puntos se agotan en segundos**. Si quieres rondas más largas, sube
-`Match.StartLives`, baja `Ball.MaxAlive` o alarga `Ball.GrowEvery`. Como ahora el
-eliminado se queda fuera hasta que acaba la ronda, si te resulta duro sube los
-puntos iniciales. Y si quieres algo más parecido a una mesa de pinball de verdad,
-baja `Ball.MaxAlive` a 10-15 (Ballistix llega a 7-8 bolas) y pon `Ball.SpeedRamp`
-en 0 si no te gusta que aceleren solas.
+Ojo con el ritmo: con 15 bolas a la vez y el pulso, los **30 puntos se gastan
+rápido**. Si quieres rondas más largas, sube `Match.StartLives`, baja
+`Ball.MaxAlive` o alarga `Ball.GrowEvery`. Como el eliminado se queda fuera hasta
+que acaba la ronda, si te resulta duro sube los puntos iniciales. Y si quieres algo
+más parecido a una mesa de pinball de verdad, pon `Ball.SpeedRamp` en 0 si no te
+gusta que aceleren solas.
 
 Ojo: subir `GoalWidth` es seguro, pero si cambias `Arena.Size` tienes que reescalar
 a mano `Slide.LaneDistance` y `Slide.LaneLimit` para que la línea del jugador siga
@@ -183,6 +186,13 @@ python tools/build.py
   calcula con ruido determinista: cada `Step` segundos saca un ángulo y una
   dirección nuevos de un hash, así que da tirones, nunca repite el ciclo y no
   necesita guardar estado (cualquier instante se puede recalcular igual).
+- La mesa **no puede girar más rápido que la física**: el borde recorre
+  `radio × velocidad angular` studs por frame, y por encima de ~4 studs por frame
+  (más que el diámetro de una bola) la superficie salta de un fotograma al
+  siguiente y la atraviesa. Con los valores de fábrica el peor frame barre 1,6
+  studs. Aun así, cada frame el servidor comprueba que ninguna bola se haya quedado
+  por debajo del plano de la mesa (`keepOnTable`) y la devuelve arriba con un
+  empujoncito, en vez de dejarla caer fuera.
 - El jugador es un **personaje invisible** con un **rectángulo soldado**
   (`WeldConstraint`) a su `HumanoidRootPart`: el cuerpo sigue chocando (así el
   conjunto se apoya en el suelo como cualquier personaje) pero no se ve, y el

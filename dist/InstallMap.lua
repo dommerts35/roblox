@@ -53,11 +53,11 @@ Config.Slide = {
 -- partida hay entre StartMin y StartMax, y cada GrowEvery segundos el
 -- tope sube 1 hasta llegar a MaxAlive.
 Config.Ball = {
-	Diameter = 4,
+	Diameter = 7,
 	StartMin = 3,           -- bolas al empezar la partida
 	StartMax = 5,
 	GrowEvery = 2,          -- segundos entre cada subida del tope
-	MaxAlive = 100,         -- tope maximo de bolas simultaneas
+	MaxAlive = 15,          -- tope maximo de bolas simultaneas
 	Batch = 3,              -- bolas que puede soltar de golpe el spawner
 	Interval = 0.6,         -- segundos entre rondas de aparicion
 	LaunchSpeed = 62,
@@ -122,11 +122,11 @@ Config.Tilt = {
 	Enabled = true,
 	MinDegrees = 7,         -- inclinacion minima
 	MaxDegrees = 15,        -- inclinacion maxima
-	Step = 0.35,            -- segundos entre cambio y cambio de inclinacion
-	Jitter = 1.1,           -- tiron de direccion aleatorio (radianes)
-	Pulse = 0.3,            -- latido rapido de la inclinacion
-	WobbleSpeed = 3,        -- rad/s del latido
-	TurnSpeed = 1.8,        -- rad/s del giro base de la direccion
+	Step = 0.9,             -- segundos entre cambio y cambio de inclinacion
+	Jitter = 0.35,          -- tiron de direccion aleatorio (radianes)
+	Pulse = 0.2,            -- latido rapido de la inclinacion
+	WobbleSpeed = 1.2,      -- rad/s del latido
+	TurnSpeed = 0.45,       -- rad/s del giro base de la direccion
 	UpdateRate = 60,        -- Hz a los que se mueve la arena
 }
 

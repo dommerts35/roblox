@@ -474,6 +474,23 @@ local function paddlePulses()
 	end
 end
 
+-- Red de seguridad del suelo -------------------------------------------
+-- La mesa no se simula: se mueve con PivotTo por debajo de las bolas, asi
+-- que en un tiron fuerte una bola puede quedarse dentro del suelo. Ahora
+-- que hay pocas bolas sale barato mirarlo cada frame y devolver arriba las
+-- que se hayan colado, en vez de dejarlas caer fuera de la mesa.
+local function keepOnTable(ball)
+	local pos = ball.Position
+	local r = ball.Size.X / 2
+	local floor = Config.surfaceHeight(currentTilt, pos.X, pos.Z) + ARENA.FloorTop
+
+	if pos.Y < floor - r * 0.5 then
+		local vel = ball.AssemblyLinearVelocity
+		ball.CFrame = CFrame.new(pos.X, floor + r + 0.2, pos.Z)
+		ball.AssemblyLinearVelocity = Vector3.new(vel.X, math.abs(vel.Y) * 0.3 + 6, vel.Z)
+	end
+end
+
 -- Goles, pulso de energia y tope de velocidad de las bolas, una vez por
 -- frame.
 RunService.Heartbeat:Connect(function()
@@ -489,6 +506,7 @@ RunService.Heartbeat:Connect(function()
 				if speed > BALL.MaxSpeed then
 					ball.AssemblyLinearVelocity = vel * (BALL.MaxSpeed / speed)
 				end
+				keepOnTable(ball)
 			end
 		end
 	end

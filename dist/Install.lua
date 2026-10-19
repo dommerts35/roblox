@@ -53,11 +53,11 @@ Config.Slide = {
 -- partida hay entre StartMin y StartMax, y cada GrowEvery segundos el
 -- tope sube 1 hasta llegar a MaxAlive.
 Config.Ball = {
-	Diameter = 4,
+	Diameter = 7,
 	StartMin = 3,           -- bolas al empezar la partida
 	StartMax = 5,
 	GrowEvery = 2,          -- segundos entre cada subida del tope
-	MaxAlive = 100,         -- tope maximo de bolas simultaneas
+	MaxAlive = 15,          -- tope maximo de bolas simultaneas
 	Batch = 3,              -- bolas que puede soltar de golpe el spawner
 	Interval = 0.6,         -- segundos entre rondas de aparicion
 	LaunchSpeed = 62,
@@ -122,11 +122,11 @@ Config.Tilt = {
 	Enabled = true,
 	MinDegrees = 7,         -- inclinacion minima
 	MaxDegrees = 15,        -- inclinacion maxima
-	Step = 0.35,            -- segundos entre cambio y cambio de inclinacion
-	Jitter = 1.1,           -- tiron de direccion aleatorio (radianes)
-	Pulse = 0.3,            -- latido rapido de la inclinacion
-	WobbleSpeed = 3,        -- rad/s del latido
-	TurnSpeed = 1.8,        -- rad/s del giro base de la direccion
+	Step = 0.9,             -- segundos entre cambio y cambio de inclinacion
+	Jitter = 0.35,          -- tiron de direccion aleatorio (radianes)
+	Pulse = 0.2,            -- latido rapido de la inclinacion
+	WobbleSpeed = 1.2,      -- rad/s del latido
+	TurnSpeed = 0.45,       -- rad/s del giro base de la direccion
 	UpdateRate = 60,        -- Hz a los que se mueve la arena
 }
 
@@ -708,6 +708,23 @@ local function paddlePulses()
 	end
 end
 
+-- Red de seguridad del suelo -------------------------------------------
+-- La mesa no se simula: se mueve con PivotTo por debajo de las bolas, asi
+-- que en un tiron fuerte una bola puede quedarse dentro del suelo. Ahora
+-- que hay pocas bolas sale barato mirarlo cada frame y devolver arriba las
+-- que se hayan colado, en vez de dejarlas caer fuera de la mesa.
+local function keepOnTable(ball)
+	local pos = ball.Position
+	local r = ball.Size.X / 2
+	local floor = Config.surfaceHeight(currentTilt, pos.X, pos.Z) + ARENA.FloorTop
+
+	if pos.Y < floor - r * 0.5 then
+		local vel = ball.AssemblyLinearVelocity
+		ball.CFrame = CFrame.new(pos.X, floor + r + 0.2, pos.Z)
+		ball.AssemblyLinearVelocity = Vector3.new(vel.X, math.abs(vel.Y) * 0.3 + 6, vel.Z)
+	end
+end
+
 -- Goles, pulso de energia y tope de velocidad de las bolas, una vez por
 -- frame.
 RunService.Heartbeat:Connect(function()
@@ -723,6 +740,7 @@ RunService.Heartbeat:Connect(function()
 				if speed > BALL.MaxSpeed then
 					ball.AssemblyLinearVelocity = vel * (BALL.MaxSpeed / speed)
 				end
+				keepOnTable(ball)
 			end
 		end
 	end
