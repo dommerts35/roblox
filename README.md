@@ -61,6 +61,12 @@ jugador (usa `View` → `Show Multiple Windows` si quieres verlas a la vez).
 Las cuatro direcciones hacen lo mismo (moverte por tu línea); se mapean según lo
 que ves en pantalla, así que "izquierda en pantalla" siempre es la misma tecla.
 
+Debajo de la mesa tienes la **barra del pulso**: se rellena mientras recarga y,
+cuando está llena y del color de tu lado, vuelve a estar disponible. Al pulsar se
+queda en blanco con el aviso **¡AHORA!** durante la ventana de 0,3 s (el momento en
+que la bola sale disparada); si se pasa sin tocar nada, la barra vuelve a llenarse
+pero tarda 3 s en vez de 1,5.
+
 ---
 
 ## Reglas
@@ -91,9 +97,10 @@ que ves en pantalla, así que "izquierda en pantalla" siempre es la misma tecla.
   más rápida sale. No hay ningún golpe mágico por el simple hecho de tocarla.
 - **Pulso de energía** (`Espacio` / `Cuadrado`): el único golpe fuerte. Carga una
   ventana de 0,3 s y la bola que llegue a la cara delantera sale a **180** hacia el
-  centro, desviada hacia el lado de la punta con la que la golpees. Si lo gastas sin
-  tocar ninguna bola, queda **bloqueado 3 segundos**, así que conviene pulsarlo con
-  una bola cerca (es el "extra kick" de Ballistix).
+  centro, desviada hacia el lado de la punta con la que la golpees. Después recarga
+  **1,5 s** (se ve en la barra de debajo de la mesa) y, si lo gastas sin tocar ninguna
+  bola, el bloqueo es de **3 segundos**, así que conviene pulsarlo con una bola cerca
+  (es el "extra kick" de Ballistix).
 - **Puntos y eliminación**: cada jugador empieza con **30 puntos**. Cada bola que
   entra en su portería le quita **1**, la haya metido quien la haya metido (los
   autogoles cuentan igual). Las porterías **sin jugador también restan**, para que el
@@ -121,7 +128,7 @@ Todo se controla desde **`src/shared/Config.lua`** (y su copia dentro de
 | `Arena` | Tamaño del cuadrado, alto y grosor de muros, ancho del hueco de portería (`GoalWidth`), pilares |
 | `Slide` | Velocidad de deslizamiento, distancia de la línea, límites laterales |
 | `Paddle` | **Rectángulo de cada jugador**: largo (`Width`), alto (`Height`), grosor (`Depth`) y hueco bajo la pala |
-| `Hit` | **Pulso de energía**: fuerza (`Power`), cuánto apunta al golpear en una punta (`Aim`), alcance por delante de la cara (`Reach`), ventana para acertar (`PulseWindow`) y bloqueo al fallar (`PulseLock`) |
+| `Hit` | **Pulso de energía**: fuerza (`Power`), cuánto apunta al golpear en una punta (`Aim`), alcance por delante de la cara (`Reach`), ventana para acertar (`PulseWindow`), recarga al acertar (`Recharge`) y bloqueo al fallar (`PulseLock`) |
 | `Ball` | Tamaño (`Diameter`), bolas iniciales (`StartMin`/`StartMax`), ritmo de subida (`GrowEvery`) y tope (`MaxAlive`), tamaño de lote (`Batch`), velocidad, **aceleración con el tiempo** (`SpeedRamp`), rebote, fricción |
 | `Tilt` | **Inclinación de la mesa**: ángulo mínimo/máximo, cada cuánto cambia (`Step`), fuerza del tirón (`Jitter`), latido (`Pulse`/`WobbleSpeed`), giro base (`TurnSpeed`) y frecuencia de actualización |
 | `Match` | **Puntos iniciales** (`StartLives`) y pausa antes de reiniciar |
@@ -244,7 +251,9 @@ python tools/build.py
   salen a `Hit.Power` (180, el tope) hacia el centro, y la ventana se cierra. Es el
   único golpe fuerte que hay: lo demás es el rebote físico del rectángulo. Si la
   ventana se cierra sin tocar nada, el servidor bloquea el pulso `Hit.PulseLock`
-  segundos y avisa al cliente.
+  segundos; si acierta, lo recarga `Hit.Recharge` segundos. El servidor no manda
+  instantes sino duraciones (`armed` / `hit` / `miss`), y el cliente rellena su barra
+  con su propio reloj, así que la latencia no la descuadra.
 - **Eliminación**: al llegar a 0 el servidor marca el lado como fuera, hace explotar
   el rectángulo (`Explosion` con presión y radio 0: solo el fogonazo), pone al
   jugador el atributo `Out` (el cliente deja de mover la pala) y lo manda a la grada

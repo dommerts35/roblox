@@ -82,6 +82,7 @@ Config.Hit = {
 	-- El pulso se carga una ventana corta; si se gasta sin tocar ninguna
 	-- bola queda bloqueado un rato (por eso conviene esperar a tener una cerca).
 	PulseWindow = 0.3,      -- segundos que el pulso esta cargado esperando bola
+	Recharge = 1.5,         -- segundos de recarga tras acertar (la barra del HUD)
 	PulseLock = 3,          -- segundos de bloqueo si se falla el pulso
 }
 

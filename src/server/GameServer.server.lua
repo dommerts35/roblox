@@ -461,7 +461,7 @@ local function paddlePulses()
 				pulseUntil[side] = nil
 				pulseLock[side] = now + HIT.PulseLock
 				if sideOwner[side] then
-					broadcast("Pulse", { side = side, state = "miss" })
+					broadcast("Pulse", { side = side, state = "miss", duration = HIT.PulseLock })
 				end
 			end
 
@@ -492,8 +492,8 @@ local function paddlePulses()
 
 				if hit then
 					pulseUntil[side] = nil
-					pulseLock[side] = nil
-					broadcast("Pulse", { side = side, state = "hit" })
+					pulseLock[side] = now + HIT.Recharge
+					broadcast("Pulse", { side = side, state = "hit", duration = HIT.Recharge })
 				end
 			end
 		end
@@ -669,9 +669,19 @@ Pulse.OnServerEvent:Connect(function(player)
 
 	local now = time()
 	if pulseUntil[side] then return end                       -- ya cargado
-	if pulseLock[side] and now < pulseLock[side] then return end  -- bloqueado
+	if pulseLock[side] and now < pulseLock[side] then
+		-- Sigue recargando: se lo decimos al cliente para que la barra del
+		-- HUD se sincronice (por si pulsa a lo loco).
+		broadcast("Pulse", {
+			side = side,
+			state = "locked",
+			remaining = pulseLock[side] - now,
+		})
+		return
+	end
 
 	pulseUntil[side] = now + HIT.PulseWindow
+	broadcast("Pulse", { side = side, state = "armed", duration = HIT.PulseWindow })
 end)
 
 -- Alta y baja de jugadores ---------------------------------------------

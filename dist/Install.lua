@@ -101,6 +101,7 @@ Config.Hit = {
 	-- El pulso se carga una ventana corta; si se gasta sin tocar ninguna
 	-- bola queda bloqueado un rato (por eso conviene esperar a tener una cerca).
 	PulseWindow = 0.3,      -- segundos que el pulso esta cargado esperando bola
+	Recharge = 1.5,         -- segundos de recarga tras acertar (la barra del HUD)
 	PulseLock = 3,          -- segundos de bloqueo si se falla el pulso
 }
 
@@ -695,7 +696,7 @@ local function paddlePulses()
 				pulseUntil[side] = nil
 				pulseLock[side] = now + HIT.PulseLock
 				if sideOwner[side] then
-					broadcast("Pulse", { side = side, state = "miss" })
+					broadcast("Pulse", { side = side, state = "miss", duration = HIT.PulseLock })
 				end
 			end
 
@@ -726,8 +727,8 @@ local function paddlePulses()
 
 				if hit then
 					pulseUntil[side] = nil
-					pulseLock[side] = nil
-					broadcast("Pulse", { side = side, state = "hit" })
+					pulseLock[side] = now + HIT.Recharge
+					broadcast("Pulse", { side = side, state = "hit", duration = HIT.Recharge })
 				end
 			end
 		end
@@ -903,9 +904,19 @@ Pulse.OnServerEvent:Connect(function(player)
 
 	local now = time()
 	if pulseUntil[side] then return end                       -- ya cargado
-	if pulseLock[side] and now < pulseLock[side] then return end  -- bloqueado
+	if pulseLock[side] and now < pulseLock[side] then
+		-- Sigue recargando: se lo decimos al cliente para que la barra del
+		-- HUD se sincronice (por si pulsa a lo loco).
+		broadcast("Pulse", {
+			side = side,
+			state = "locked",
+			remaining = pulseLock[side] - now,
+		})
+		return
+	end
 
 	pulseUntil[side] = now + HIT.PulseWindow
+	broadcast("Pulse", { side = side, state = "armed", duration = HIT.PulseWindow })
 end)
 
 -- Alta y baja de jugadores ---------------------------------------------
@@ -1054,6 +1065,87 @@ help.TextColor3 = Color3.fromRGB(220, 225, 235)
 help.TextStrokeTransparency = 0.6
 help.Text = "A / D o flechas: deslizate  -  Espacio o Cuadrado: pulso  -  1 bola en tu porteria = 1 vida"
 help.Parent = gui
+
+-- Barra del pulso -------------------------------------------------------
+-- Se vacia al usar el pulso y se vuelve a llenar mientras recarga: llena y
+-- con el color del lado = listo para volver a empujar.
+
+local pulsePanel = Instance.new("Frame")
+pulsePanel.Name = "Pulso"
+pulsePanel.AnchorPoint = Vector2.new(0.5, 1)
+pulsePanel.Position = UDim2.new(0.5, 0, 0.98, -34)
+pulsePanel.Size = UDim2.fromOffset(330, 30)
+pulsePanel.BackgroundColor3 = Color3.fromRGB(16, 18, 24)
+pulsePanel.BackgroundTransparency = 0.15
+pulsePanel.BorderSizePixel = 0
+pulsePanel.Visible = false
+pulsePanel.Parent = gui
+
+local pulseCorner = Instance.new("UICorner")
+pulseCorner.CornerRadius = UDim.new(0, 8)
+pulseCorner.Parent = pulsePanel
+
+local pulseFill = Instance.new("Frame")
+pulseFill.Name = "Relleno"
+pulseFill.Size = UDim2.fromScale(1, 1)
+pulseFill.BackgroundColor3 = SIDES[1].Color
+pulseFill.BackgroundTransparency = 0.2
+pulseFill.BorderSizePixel = 0
+pulseFill.Parent = pulsePanel
+
+local pulseFillCorner = Instance.new("UICorner")
+pulseFillCorner.CornerRadius = UDim.new(0, 8)
+pulseFillCorner.Parent = pulseFill
+
+local pulseText = Instance.new("TextLabel")
+pulseText.Name = "Texto"
+pulseText.Size = UDim2.fromScale(1, 1)
+pulseText.BackgroundTransparency = 1
+pulseText.Font = Enum.Font.GothamBold
+pulseText.TextSize = 14
+pulseText.TextColor3 = Color3.fromRGB(255, 255, 255)
+pulseText.TextStrokeTransparency = 0.6
+pulseText.Text = "ESPACIO: PULSO LISTO"
+pulseText.Parent = pulsePanel
+
+-- Estado de la barra, en tiempo del cliente (el servidor manda duraciones,
+-- no instantes, asi que no depende de la latencia).
+local pulseEnds = 0       -- cuando vuelve a estar listo
+local pulseSpan = 1       -- lo que dura la recarga en curso
+local pulseArmedUntil = 0 -- ventana en la que el pulso esta cargado
+
+local function updatePulseBar()
+	local side = player:GetAttribute("Side")
+	local out = player:GetAttribute("Out")
+	pulsePanel.Visible = side ~= nil and not out
+	if not side then return end
+
+	local now = os.clock()
+	local ready = now >= pulseEnds
+	local armed = now < pulseArmedUntil
+	local color = SIDES[side].Color
+
+	local fraction = 1
+	if not ready then
+		fraction = 1 - (pulseEnds - now) / math.max(pulseSpan, 0.01)
+	end
+	fraction = math.clamp(fraction, 0, 1)
+
+	pulseFill.Size = UDim2.fromScale(fraction, 1)
+	pulseFill.BackgroundColor3 = armed and Color3.fromRGB(255, 255, 255) or color
+	pulseFill.BackgroundTransparency = ready and 0.2 or 0.45
+
+	if armed then
+		pulseText.Text = "¡AHORA!  golpea la bola"
+		pulseText.TextColor3 = Color3.fromRGB(255, 255, 255)
+	elseif ready then
+		pulseText.Text = "ESPACIO: PULSO LISTO"
+		pulseText.TextColor3 = color
+	else
+		pulseText.Text = string.format("PULSO RECARGANDO  %.1f s", pulseEnds - now)
+		pulseText.TextColor3 = Color3.fromRGB(205, 210, 220)
+	end
+end
 
 local cells = {}
 for i = 1, #SIDES do
@@ -1281,6 +1373,9 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if not player:GetAttribute("Side") or player:GetAttribute("Out") then return end
 
 	local now = os.clock()
+	-- Si la barra aun no esta llena, ni se intenta (el servidor lo rechazaria
+	-- igual): asi no se sale el pulso por pulsar a lo loco.
+	if now < pulseEnds or now < pulseArmedUntil then return end
 	if now - lastPulse < 0.15 then return end
 	lastPulse = now
 	pulseRemote:FireServer()
@@ -1288,8 +1383,12 @@ end)
 
 RunService.RenderStepped:Connect(function()
 	local side = player:GetAttribute("Side")
-	if not side then return end
+	if not side then
+		updatePulseBar()
+		return
+	end
 
+	updatePulseBar()
 	updateCamera(side)
 
 	-- Eliminado: se queda mirando la mesa desde su lado, sin pala.
@@ -1325,8 +1424,26 @@ GameEvent.OnClientEvent:Connect(function(kind, data)
 		local side = data.side
 		flashMessage(SIDES[side].Name .. " eliminado", SIDES[side].Color, 2.2)
 	elseif kind == "Pulse" then
-		if data.side == player:GetAttribute("Side") and data.state == "miss" then
-			flashMessage("Pulso fallado: bloqueado", Color3.fromRGB(255, 150, 80), 1.2)
+		if data.side ~= player:GetAttribute("Side") then return end
+
+		if data.state == "armed" then
+			pulseArmedUntil = os.clock() + (data.duration or Config.Hit.PulseWindow)
+		elseif data.state == "hit" or data.state == "miss" then
+			pulseArmedUntil = 0
+			pulseSpan = math.max(data.duration or 0.01, 0.01)
+			pulseEnds = os.clock() + pulseSpan
+			if data.state == "miss" then
+				flashMessage("Pulso fallado: bloqueado", Color3.fromRGB(255, 150, 80), 1.2)
+			end
+		elseif data.state == "locked" then
+			-- Pulsado mientras recargaba: se resincroniza la barra con lo que
+			-- le queda, para que empiece a llenarse desde donde toca.
+			local remaining = data.remaining or 0
+			if remaining > 0 then
+				pulseArmedUntil = 0
+				pulseSpan = math.max(remaining, 0.01)
+				pulseEnds = os.clock() + remaining
+			end
 		end
 	elseif kind == "Reset" then
 		flashMessage("Nueva partida", Color3.fromRGB(255, 255, 255), 2)
