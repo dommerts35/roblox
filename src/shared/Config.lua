@@ -48,6 +48,7 @@ Config.Ball = {
 	Friction = 0.05,
 	Elasticity = 0.85,
 	MaxSpeed = 180,         -- tope de velocidad (evita atravesar muros)
+	SpeedRamp = 0.04,       -- % que ganan de velocidad por segundo (Ballistix)
 	MinSpeed = 12,          -- por debajo de esto la bola se considera parada
 	StuckTime = 2,          -- segundos parada antes de empujarla
 	NudgeSpeed = 46,
@@ -75,10 +76,16 @@ Config.Paddle = {
 -- del ancho donde le da desvia el tiro, asi que se puede apuntar.
 Config.Hit = {
 	Enabled = true,
-	Speed = 150,            -- velocidad a la que sale la bola (studs/segundo)
-	Aim = 80,               -- desvio maximo al golpear en un extremo de la pala
+	Speed = 120,            -- rebote normal de la pala (studs/segundo)
+	Aim = 70,               -- desvio maximo al golpear en un extremo de la pala
 	Reach = 4,              -- studs por delante de la cara que cuentan como toque
 	Cooldown = 0.15,        -- segundos entre dos golpes a la misma bola
+	-- Pulso de energia: el golpe fuerte de Ballistix. Se pulsa en el
+	-- momento justo; si se gasta sin tocar ninguna bola, queda bloqueado
+	-- un rato (por eso conviene esperar a tener una cerca).
+	Power = 180,            -- velocidad del golpe con el pulso cargado
+	PulseWindow = 0.3,      -- segundos que el pulso esta cargado esperando bola
+	PulseLock = 3,          -- segundos de bloqueo si se falla el pulso
 }
 
 -- Partida --------------------------------------------------------------

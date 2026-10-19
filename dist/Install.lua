@@ -67,6 +67,7 @@ Config.Ball = {
 	Friction = 0.05,
 	Elasticity = 0.85,
 	MaxSpeed = 180,         -- tope de velocidad (evita atravesar muros)
+	SpeedRamp = 0.04,       -- % que ganan de velocidad por segundo (Ballistix)
 	MinSpeed = 12,          -- por debajo de esto la bola se considera parada
 	StuckTime = 2,          -- segundos parada antes de empujarla
 	NudgeSpeed = 46,
@@ -94,10 +95,16 @@ Config.Paddle = {
 -- del ancho donde le da desvia el tiro, asi que se puede apuntar.
 Config.Hit = {
 	Enabled = true,
-	Speed = 150,            -- velocidad a la que sale la bola (studs/segundo)
-	Aim = 80,               -- desvio maximo al golpear en un extremo de la pala
+	Speed = 120,            -- rebote normal de la pala (studs/segundo)
+	Aim = 70,               -- desvio maximo al golpear en un extremo de la pala
 	Reach = 4,              -- studs por delante de la cara que cuentan como toque
 	Cooldown = 0.15,        -- segundos entre dos golpes a la misma bola
+	-- Pulso de energia: el golpe fuerte de Ballistix. Se pulsa en el
+	-- momento justo; si se gasta sin tocar ninguna bola, queda bloqueado
+	-- un rato (por eso conviene esperar a tener una cerca).
+	Power = 180,            -- velocidad del golpe con el pulso cargado
+	PulseWindow = 0.3,      -- segundos que el pulso esta cargado esperando bola
+	PulseLock = 3,          -- segundos de bloqueo si se falla el pulso
 }
 
 -- Partida --------------------------------------------------------------
@@ -248,6 +255,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage:WaitForChild("Config"))
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local GameEvent = Remotes:WaitForChild("GameEvent")
+local Pulse = Remotes:WaitForChild("Pulse")
 
 local Workspace = game:GetService("Workspace")
 local Arena = Workspace:WaitForChild("Arena")
@@ -268,6 +276,9 @@ local sideOwner = {}   -- [lado] = Player
 local playerSide = {}  -- [Player] = lado
 local lives = {}       -- [lado] = vidas restantes
 local paddles = {}     -- [lado] = pala del jugador que ocupa ese lado
+local eliminated = {}  -- [lado] = true si se ha quedado a 0 (fuera)
+local pulseUntil = {}  -- [lado] = instante hasta el que dura el pulso cargado
+local pulseLock = {}   -- [lado] = instante hasta el que el pulso esta bloqueado
 local stuckTime = {}   -- [bola] = segundos parada
 local currentTilt = CFrame.new(0, 0, 0) -- inclinacion actual de la arena
 local matchOver = false
@@ -292,6 +303,7 @@ local function buildState()
 			name = SIDES[i].Name,
 			color = SIDES[i].Color,
 			lives = lives[i],
+			out = eliminated[i] and true or false,
 			player = sideOwner[i] and sideOwner[i].Name or nil,
 		}
 	end
@@ -375,8 +387,8 @@ local function setupCharacter(player, character)
 	humanoid.MaxHealth = 1000000
 	humanoid.Health = 1000000
 
-	if not side then
-		-- Espectador: queda libre en la grada.
+	if not side or eliminated[side] then
+		-- Espectador (o jugador eliminado): queda libre en la grada.
 		humanoid.WalkSpeed = 20
 		humanoid.UseJumpPower = true
 		humanoid.JumpPower = 50
@@ -439,7 +451,7 @@ task.spawn(function()
 			local side = playerSide[player]
 			local character = player.Character
 			local root = character and character:FindFirstChild("HumanoidRootPart")
-			if side and root then
+			if side and root and not eliminated[side] then
 				local rot = Config.sideRotation(side)
 				local pos = root.Position
 				local a = pos:Dot(rot.RightVector)
@@ -501,29 +513,90 @@ local function trimBalls(target)
 end
 
 -- Goles y vidas --------------------------------------------------------
+-- Como en Ballistix: el que se queda a 0 puntos explota y queda fuera de
+-- la mesa, y gana el ultimo que siga jugando. No hay limite de tiempo.
 
-local function endMatch(playerWhoLost)
-	local winner, best = nil, -1
+local function aliveSides()
+	local n = 0
 	for i = 1, #SIDES do
-		if lives[i] > best then
-			best = lives[i]
-			winner = i
+		if sideOwner[i] and lives[i] > 0 and not eliminated[i] then
+			n = n + 1
 		end
 	end
+	return n
+end
 
+local function restartRound()
+	for i = 1, #SIDES do
+		lives[i] = MATCH.StartLives
+		eliminated[i] = nil
+		pulseUntil[i] = nil
+		pulseLock[i] = nil
+	end
+	matchOver = false
+	resetBallTarget()
+	trimBalls(targetBalls)
+
+	for _, player in ipairs(Players:GetPlayers()) do
+		player:SetAttribute("Out", nil)
+	end
+
+	broadcast("Reset", { lives = lives })
+	broadcastState()
+
+	-- Personajes nuevos: los eliminados vuelven a la mesa como pala.
+	for _, player in ipairs(Players:GetPlayers()) do
+		pcall(function()
+			player:LoadCharacter()
+		end)
+	end
+end
+
+local function endRound(winner)
 	matchOver = true
-	broadcast("GameOver", { out = playerWhoLost, winner = winner, lives = lives })
+	broadcast("GameOver", { winner = winner, lives = lives })
+	task.delay(MATCH.EndPause, restartRound)
+end
 
-	task.delay(MATCH.EndPause, function()
+local function eliminateSide(side)
+	eliminated[side] = true
+	pulseUntil[side] = nil
+	pulseLock[side] = nil
+
+	local player = sideOwner[side]
+	if player then
+		player:SetAttribute("Out", true)
+	end
+
+	-- La nave explota: fogonazo sin fuerza, no empuja nada.
+	local pad = paddles[side]
+	if pad and pad.Parent then
+		local boom = Instance.new("Explosion")
+		boom.Position = pad.Position
+		boom.BlastPressure = 0
+		boom.BlastRadius = 6
+		boom.DestroyJointRadiusPercent = 0
+		boom.Parent = Workspace
+		pad:Destroy()
+	end
+	paddles[side] = nil
+
+	broadcast("Eliminated", { side = side })
+
+	if aliveSides() <= 1 then
+		local winner = nil
 		for i = 1, #SIDES do
-			lives[i] = MATCH.StartLives
+			if sideOwner[i] and lives[i] > 0 then
+				winner = i
+			end
 		end
-		matchOver = false
-		resetBallTarget()
-		trimBalls(targetBalls)
-		broadcast("Reset", { lives = lives })
-		broadcastState()
-	end)
+		endRound(winner)
+	end
+
+	-- Reaparece como espectador (setupCharacter lo detecta).
+	if player and player.Character then
+		player:LoadCharacter()
+	end
 end
 
 -- Cualquier bola que entre en una porteria le quita una vida a su dueno.
@@ -534,7 +607,7 @@ local function onGoal(ball, ownerSide)
 		broadcastState()
 
 		if lives[ownerSide] <= 0 then
-			endMatch(ownerSide)
+			eliminateSide(ownerSide)
 		end
 	end
 
@@ -593,7 +666,19 @@ local function paddleHits()
 		local pad = paddles[side]
 		-- pad.Parent es nil si el jugador esta reapareciendo o se ha ido.
 		if pad and pad.Parent then
+			-- Pulso cargado que se gasta sin tocar bola: queda bloqueado
+			-- unos segundos (asi se paga el pulsar a lo loco).
+			if pulseUntil[side] and now > pulseUntil[side] then
+				pulseUntil[side] = nil
+				pulseLock[side] = now + HIT.PulseLock
+				if sideOwner[side] then
+					broadcast("Pulse", { side = side, state = "miss" })
+				end
+			end
+
 			local cf = pad.CFrame
+			local powered = pulseUntil[side] ~= nil
+			local speed = powered and HIT.Power or HIT.Speed
 
 			for _, ball in ipairs(Balls:GetChildren()) do
 				if ball:IsA("BasePart") then
@@ -613,8 +698,14 @@ local function paddleHits()
 
 							local aim = math.clamp(lp.X / halfW, -1, 1)
 							ball.AssemblyLinearVelocity =
-								cf.LookVector * HIT.Speed
+								cf.LookVector * speed
 								+ cf.RightVector * (aim * HIT.Aim)
+
+							if powered then
+								pulseUntil[side] = nil
+								pulseLock[side] = nil
+								broadcast("Pulse", { side = side, state = "hit" })
+							end
 						end
 					end
 				end
@@ -735,6 +826,13 @@ task.spawn(function()
 			if ball:IsA("BasePart") then
 				local vel = ball.AssemblyLinearVelocity
 				local flat = Vector3.new(vel.X, 0, vel.Z).Magnitude
+
+				-- Ballistix: las bolas van ganando velocidad con el tiempo,
+				-- asi que la partida se calienta sola.
+				if flat >= BALL.MinSpeed and vel.Magnitude < BALL.MaxSpeed * 0.95 then
+					ball.AssemblyLinearVelocity = vel * (1 + BALL.SpeedRamp)
+				end
+
 				if flat < BALL.MinSpeed then
 					stuckTime[ball] = (stuckTime[ball] or 0) + 1
 					if stuckTime[ball] >= BALL.StuckTime then
@@ -756,6 +854,22 @@ task.spawn(function()
 	end
 end)
 
+-- Pulso de energia -----------------------------------------------------
+-- El cliente avisa al pulsar. El pulso queda cargado unos instantes y la
+-- siguiente bola que toque la cara delantera sale a toda velocidad.
+Pulse.OnServerEvent:Connect(function(player)
+	local side = playerSide[player]
+	if not side or matchOver or eliminated[side] or not lives[side] or lives[side] <= 0 then
+		return
+	end
+
+	local now = time()
+	if pulseUntil[side] then return end                       -- ya cargado
+	if pulseLock[side] and now < pulseLock[side] then return end  -- bloqueado
+
+	pulseUntil[side] = now + HIT.PulseWindow
+end)
+
 -- Alta y baja de jugadores ---------------------------------------------
 
 local function freeSide()
@@ -763,6 +877,9 @@ local function freeSide()
 		local owner = sideOwner[i]
 		if not owner or not owner.Parent then
 			sideOwner[i] = nil
+			eliminated[i] = nil
+			pulseUntil[i] = nil
+			pulseLock[i] = nil
 			return i
 		end
 	end
@@ -796,6 +913,9 @@ local function onPlayerRemoving(player)
 	if side then
 		sideOwner[side] = nil
 		paddles[side] = nil
+		eliminated[side] = nil
+		pulseUntil[side] = nil
+		pulseLock[side] = nil
 	end
 	playerSide[player] = nil
 	broadcastState()
@@ -889,7 +1009,7 @@ help.Font = Enum.Font.GothamMedium
 help.TextSize = 16
 help.TextColor3 = Color3.fromRGB(220, 225, 235)
 help.TextStrokeTransparency = 0.6
-help.Text = "A / D o flechas para deslizarte  -  cada bola que entre en tu porteria te cuesta 1 vida"
+help.Text = "A / D o flechas: deslizate  -  Espacio o Cuadrado: pulso  -  1 bola en tu porteria = 1 vida"
 help.Parent = gui
 
 local cells = {}
@@ -966,11 +1086,11 @@ local function updateState(state)
 	for i, info in ipairs(state) do
 		local cell = cells[i]
 		if cell then
-			cell.lives.Text = tostring(info.lives)
-			cell.lives.TextColor3 = info.lives <= 5
+			cell.lives.Text = info.out and "--" or tostring(info.lives)
+			cell.lives.TextColor3 = (info.out or info.lives <= 5)
 					and Color3.fromRGB(255, 85, 85)
 				or Color3.fromRGB(255, 255, 255)
-			cell.player.Text = info.player or "libre"
+			cell.player.Text = info.out and "eliminado" or (info.player or "libre")
 			local mine = player:GetAttribute("Side") == i
 			cell.frame.BackgroundColor3 = mine and Color3.fromRGB(54, 62, 82) or Color3.fromRGB(30, 34, 44)
 		end
@@ -1098,11 +1218,35 @@ local function drivePaddle(side, dir)
 	end
 end
 
+-- Pulso de energia -----------------------------------------------------
+-- El "extra kick" de Ballistix: se pulsa en el momento justo y la proxima
+-- bola sale disparada. Si se gasta sin tocar nada, el servidor lo bloquea.
+
+local pulseRemote = Remotes:WaitForChild("Pulse")
+local lastPulse = 0
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+	if input.KeyCode ~= Enum.KeyCode.Space
+		and input.KeyCode ~= Enum.KeyCode.ButtonX then
+		return
+	end
+	if not player:GetAttribute("Side") or player:GetAttribute("Out") then return end
+
+	local now = os.clock()
+	if now - lastPulse < 0.15 then return end
+	lastPulse = now
+	pulseRemote:FireServer()
+end)
+
 RunService.RenderStepped:Connect(function()
 	local side = player:GetAttribute("Side")
 	if not side then return end
 
 	updateCamera(side)
+
+	-- Eliminado: se queda mirando la mesa desde su lado, sin pala.
+	if player:GetAttribute("Out") then return end
 
 	if side ~= lastSide then
 		lastSide = side
@@ -1124,13 +1268,19 @@ GameEvent.OnClientEvent:Connect(function(kind, data)
 		local side = data.side
 		flashMessage("-1 vida para " .. SIDES[side].Name, SIDES[side].Color, 1.4)
 	elseif kind == "GameOver" then
-		local out = data.out
 		local winner = data.winner
-		local texto = SIDES[out].Name .. " se queda sin vidas"
-		if winner and winner ~= out then
-			texto = texto .. " - gana " .. SIDES[winner].Name
+		if winner then
+			flashMessage("Gana " .. SIDES[winner].Name, SIDES[winner].Color, Config.Match.EndPause)
+		else
+			flashMessage("Fin de la ronda", Color3.fromRGB(255, 255, 255), Config.Match.EndPause)
 		end
-		flashMessage(texto, SIDES[out].Color, Config.Match.EndPause)
+	elseif kind == "Eliminated" then
+		local side = data.side
+		flashMessage(SIDES[side].Name .. " eliminado", SIDES[side].Color, 2.2)
+	elseif kind == "Pulse" then
+		if data.side == player:GetAttribute("Side") and data.state == "miss" then
+			flashMessage("Pulso fallado: bloqueado", Color3.fromRGB(255, 150, 80), 1.2)
+		end
 	elseif kind == "Reset" then
 		flashMessage("Nueva partida", Color3.fromRGB(255, 255, 255), 2)
 	end
@@ -1207,6 +1357,11 @@ do
 	local events = Instance.new("RemoteEvent")
 	events.Name = "GameEvent"
 	events.Parent = remotes
+
+	-- Pulso de energia (el "extra kick" de Ballistix).
+	local pulse = Instance.new("RemoteEvent")
+	pulse.Name = "Pulse"
+	pulse.Parent = remotes
 end
 
 -- 4. Arena -------------------------------------------------------------

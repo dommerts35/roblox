@@ -18,6 +18,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage:WaitForChild("Config"))
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local GameEvent = Remotes:WaitForChild("GameEvent")
+local Pulse = Remotes:WaitForChild("Pulse")
 
 local Workspace = game:GetService("Workspace")
 local Arena = Workspace:WaitForChild("Arena")
@@ -38,6 +39,9 @@ local sideOwner = {}   -- [lado] = Player
 local playerSide = {}  -- [Player] = lado
 local lives = {}       -- [lado] = vidas restantes
 local paddles = {}     -- [lado] = pala del jugador que ocupa ese lado
+local eliminated = {}  -- [lado] = true si se ha quedado a 0 (fuera)
+local pulseUntil = {}  -- [lado] = instante hasta el que dura el pulso cargado
+local pulseLock = {}   -- [lado] = instante hasta el que el pulso esta bloqueado
 local stuckTime = {}   -- [bola] = segundos parada
 local currentTilt = CFrame.new(0, 0, 0) -- inclinacion actual de la arena
 local matchOver = false
@@ -62,6 +66,7 @@ local function buildState()
 			name = SIDES[i].Name,
 			color = SIDES[i].Color,
 			lives = lives[i],
+			out = eliminated[i] and true or false,
 			player = sideOwner[i] and sideOwner[i].Name or nil,
 		}
 	end
@@ -145,8 +150,8 @@ local function setupCharacter(player, character)
 	humanoid.MaxHealth = 1000000
 	humanoid.Health = 1000000
 
-	if not side then
-		-- Espectador: queda libre en la grada.
+	if not side or eliminated[side] then
+		-- Espectador (o jugador eliminado): queda libre en la grada.
 		humanoid.WalkSpeed = 20
 		humanoid.UseJumpPower = true
 		humanoid.JumpPower = 50
@@ -209,7 +214,7 @@ task.spawn(function()
 			local side = playerSide[player]
 			local character = player.Character
 			local root = character and character:FindFirstChild("HumanoidRootPart")
-			if side and root then
+			if side and root and not eliminated[side] then
 				local rot = Config.sideRotation(side)
 				local pos = root.Position
 				local a = pos:Dot(rot.RightVector)
@@ -271,29 +276,90 @@ local function trimBalls(target)
 end
 
 -- Goles y vidas --------------------------------------------------------
+-- Como en Ballistix: el que se queda a 0 puntos explota y queda fuera de
+-- la mesa, y gana el ultimo que siga jugando. No hay limite de tiempo.
 
-local function endMatch(playerWhoLost)
-	local winner, best = nil, -1
+local function aliveSides()
+	local n = 0
 	for i = 1, #SIDES do
-		if lives[i] > best then
-			best = lives[i]
-			winner = i
+		if sideOwner[i] and lives[i] > 0 and not eliminated[i] then
+			n = n + 1
 		end
 	end
+	return n
+end
 
+local function restartRound()
+	for i = 1, #SIDES do
+		lives[i] = MATCH.StartLives
+		eliminated[i] = nil
+		pulseUntil[i] = nil
+		pulseLock[i] = nil
+	end
+	matchOver = false
+	resetBallTarget()
+	trimBalls(targetBalls)
+
+	for _, player in ipairs(Players:GetPlayers()) do
+		player:SetAttribute("Out", nil)
+	end
+
+	broadcast("Reset", { lives = lives })
+	broadcastState()
+
+	-- Personajes nuevos: los eliminados vuelven a la mesa como pala.
+	for _, player in ipairs(Players:GetPlayers()) do
+		pcall(function()
+			player:LoadCharacter()
+		end)
+	end
+end
+
+local function endRound(winner)
 	matchOver = true
-	broadcast("GameOver", { out = playerWhoLost, winner = winner, lives = lives })
+	broadcast("GameOver", { winner = winner, lives = lives })
+	task.delay(MATCH.EndPause, restartRound)
+end
 
-	task.delay(MATCH.EndPause, function()
+local function eliminateSide(side)
+	eliminated[side] = true
+	pulseUntil[side] = nil
+	pulseLock[side] = nil
+
+	local player = sideOwner[side]
+	if player then
+		player:SetAttribute("Out", true)
+	end
+
+	-- La nave explota: fogonazo sin fuerza, no empuja nada.
+	local pad = paddles[side]
+	if pad and pad.Parent then
+		local boom = Instance.new("Explosion")
+		boom.Position = pad.Position
+		boom.BlastPressure = 0
+		boom.BlastRadius = 6
+		boom.DestroyJointRadiusPercent = 0
+		boom.Parent = Workspace
+		pad:Destroy()
+	end
+	paddles[side] = nil
+
+	broadcast("Eliminated", { side = side })
+
+	if aliveSides() <= 1 then
+		local winner = nil
 		for i = 1, #SIDES do
-			lives[i] = MATCH.StartLives
+			if sideOwner[i] and lives[i] > 0 then
+				winner = i
+			end
 		end
-		matchOver = false
-		resetBallTarget()
-		trimBalls(targetBalls)
-		broadcast("Reset", { lives = lives })
-		broadcastState()
-	end)
+		endRound(winner)
+	end
+
+	-- Reaparece como espectador (setupCharacter lo detecta).
+	if player and player.Character then
+		player:LoadCharacter()
+	end
 end
 
 -- Cualquier bola que entre en una porteria le quita una vida a su dueno.
@@ -304,7 +370,7 @@ local function onGoal(ball, ownerSide)
 		broadcastState()
 
 		if lives[ownerSide] <= 0 then
-			endMatch(ownerSide)
+			eliminateSide(ownerSide)
 		end
 	end
 
@@ -363,7 +429,19 @@ local function paddleHits()
 		local pad = paddles[side]
 		-- pad.Parent es nil si el jugador esta reapareciendo o se ha ido.
 		if pad and pad.Parent then
+			-- Pulso cargado que se gasta sin tocar bola: queda bloqueado
+			-- unos segundos (asi se paga el pulsar a lo loco).
+			if pulseUntil[side] and now > pulseUntil[side] then
+				pulseUntil[side] = nil
+				pulseLock[side] = now + HIT.PulseLock
+				if sideOwner[side] then
+					broadcast("Pulse", { side = side, state = "miss" })
+				end
+			end
+
 			local cf = pad.CFrame
+			local powered = pulseUntil[side] ~= nil
+			local speed = powered and HIT.Power or HIT.Speed
 
 			for _, ball in ipairs(Balls:GetChildren()) do
 				if ball:IsA("BasePart") then
@@ -383,8 +461,14 @@ local function paddleHits()
 
 							local aim = math.clamp(lp.X / halfW, -1, 1)
 							ball.AssemblyLinearVelocity =
-								cf.LookVector * HIT.Speed
+								cf.LookVector * speed
 								+ cf.RightVector * (aim * HIT.Aim)
+
+							if powered then
+								pulseUntil[side] = nil
+								pulseLock[side] = nil
+								broadcast("Pulse", { side = side, state = "hit" })
+							end
 						end
 					end
 				end
@@ -505,6 +589,13 @@ task.spawn(function()
 			if ball:IsA("BasePart") then
 				local vel = ball.AssemblyLinearVelocity
 				local flat = Vector3.new(vel.X, 0, vel.Z).Magnitude
+
+				-- Ballistix: las bolas van ganando velocidad con el tiempo,
+				-- asi que la partida se calienta sola.
+				if flat >= BALL.MinSpeed and vel.Magnitude < BALL.MaxSpeed * 0.95 then
+					ball.AssemblyLinearVelocity = vel * (1 + BALL.SpeedRamp)
+				end
+
 				if flat < BALL.MinSpeed then
 					stuckTime[ball] = (stuckTime[ball] or 0) + 1
 					if stuckTime[ball] >= BALL.StuckTime then
@@ -526,6 +617,22 @@ task.spawn(function()
 	end
 end)
 
+-- Pulso de energia -----------------------------------------------------
+-- El cliente avisa al pulsar. El pulso queda cargado unos instantes y la
+-- siguiente bola que toque la cara delantera sale a toda velocidad.
+Pulse.OnServerEvent:Connect(function(player)
+	local side = playerSide[player]
+	if not side or matchOver or eliminated[side] or not lives[side] or lives[side] <= 0 then
+		return
+	end
+
+	local now = time()
+	if pulseUntil[side] then return end                       -- ya cargado
+	if pulseLock[side] and now < pulseLock[side] then return end  -- bloqueado
+
+	pulseUntil[side] = now + HIT.PulseWindow
+end)
+
 -- Alta y baja de jugadores ---------------------------------------------
 
 local function freeSide()
@@ -533,6 +640,9 @@ local function freeSide()
 		local owner = sideOwner[i]
 		if not owner or not owner.Parent then
 			sideOwner[i] = nil
+			eliminated[i] = nil
+			pulseUntil[i] = nil
+			pulseLock[i] = nil
 			return i
 		end
 	end
@@ -566,6 +676,9 @@ local function onPlayerRemoving(player)
 	if side then
 		sideOwner[side] = nil
 		paddles[side] = nil
+		eliminated[side] = nil
+		pulseUntil[side] = nil
+		pulseLock[side] = nil
 	end
 	playerSide[player] = nil
 	broadcastState()

@@ -55,6 +55,7 @@ jugador (usa `View` → `Show Multiple Windows` si quieres verlas a la vez).
 | Acción | Teclas |
 | --- | --- |
 | Deslizarse a lo largo de tu lado | `A` / `D`, `←` / `→`, `W` / `S`, `↑` / `↓` |
+| Pulso de energía (golpe fuerte) | `Espacio` o `Cuadrado` en el mando |
 | Mando | Stick izquierdo (X) |
 
 Las cuatro direcciones hacen lo mismo (moverte por tu línea); se mapean según lo
@@ -76,19 +77,27 @@ que ves en pantalla, así que "izquierda en pantalla" siempre es la misma tecla.
 - **Las bolas van a más**: la partida arranca con **3-5 bolas** y cada 2 s el tope
   sube una más, hasta un máximo de **100 bolas** a la vez. Los **4 pilares** de las
   esquinas las lanzan hacia el centro con ángulo aleatorio y se van turnando, así
-  que un lote nunca sale entero del mismo pilar.
+  que un lote nunca sale entero del mismo pilar. Y, como en Ballistix, **las que ya
+  ruedan también ganan velocidad** poco a poco (+4 %/s, hasta el tope de 180), así
+  que la partida se calienta sola.
 - La **mesa se inclina sola y a tirones**: cada 0,35 s elige al azar un ángulo
   nuevo (entre 7° y 15°) y una dirección nueva, con un giro constante por debajo
   que gira unas **150°/s de media** con picos de más de 600°/s. Nada de vaivenes
   suaves: la gravedad cambia de rumbo sin avisar y las bolas salen disparadas a
   cualquier parte. Los jugadores no resbalan: siguen clavados en su línea.
-- Golpeas la bola con tu rectángulo para despejarla de tu portería.
-- **Vidas**: cada jugador empieza con **30 vidas**. Cada vez que una bola entra en
-  su portería pierde **1 vida**, la haya metido quien la haya metido (los autogoles
-  cuentan igual).
-- Cuando alguien se queda a **0 vidas termina la partida**: gana quien más vidas
-  tenga y, tras unos segundos, todos vuelven a 30 y el contador de bolas otra vez
-  a 3-5.
+- Golpeas la bola con tu rectángulo para despejarla de tu portería. Si le das con
+  una punta, el tiro sale desviado hacia ese lado.
+- **Pulso de energía** (`Espacio` / `Cuadrado`): carga el golpe fuerte. La siguiente
+  bola que toque la cara delantera sale a **180** en vez de a 120. Si lo gastas sin
+  tocar ninguna bola, queda **bloqueado 3 segundos**, así que conviene pulsarlo con
+  una bola cerca (es el "extra kick" de Ballistix).
+- **Puntos y eliminación**: cada jugador empieza con **30 puntos**. Cada bola que
+  entra en su portería le quita **1**, la haya metido quien la haya metido (los
+  autogoles cuentan igual).
+- Cuando alguien se queda a **0, su nave explota y queda eliminado**: sigue mirando
+  la mesa desde su lado, pero ya no juega. **Gana el último que quede** y, tras unos
+  segundos, todos vuelven a 30 y el contador de bolas otra vez a 3-5. No hay límite
+  de tiempo.
 - Si entran más de 4 jugadores, los extra aparecen como **espectadores** en la
   grada (pueden caminar por ahí).
 
@@ -104,10 +113,10 @@ Todo se controla desde **`src/shared/Config.lua`** (y su copia dentro de
 | `Arena` | Tamaño del cuadrado, alto y grosor de muros, ancho del hueco de portería (`GoalWidth`), pilares |
 | `Slide` | Velocidad de deslizamiento, distancia de la línea, límites laterales |
 | `Paddle` | **Rectángulo de cada jugador**: largo (`Width`), alto (`Height`), grosor (`Depth`) y hueco bajo la pala |
-| `Hit` | **Golpe de la pala**: con qué fuerza lanza la bola hacia el centro (`Speed`), cuánto apunta al golpear en una punta (`Aim`), alcance por delante de la cara (`Reach`) y enfriamiento por bola |
-| `Ball` | Bolas iniciales (`StartMin`/`StartMax`), ritmo de subida (`GrowEvery`) y tope (`MaxAlive`), tamaño de lote (`Batch`), velocidad, rebote, fricción |
+| `Hit` | **Golpe de la pala**: fuerza del rebote normal (`Speed`), del **pulso** (`Power`, `PulseWindow`, `PulseLock`), cuánto apunta al golpear en una punta (`Aim`), alcance por delante de la cara (`Reach`) y enfriamiento por bola |
+| `Ball` | Bolas iniciales (`StartMin`/`StartMax`), ritmo de subida (`GrowEvery`) y tope (`MaxAlive`), tamaño de lote (`Batch`), velocidad, **aceleración con el tiempo** (`SpeedRamp`), rebote, fricción |
 | `Tilt` | **Inclinación de la mesa**: ángulo mínimo/máximo, cada cuánto cambia (`Step`), fuerza del tirón (`Jitter`), latido (`Pulse`/`WobbleSpeed`), giro base (`TurnSpeed`) y frecuencia de actualización |
-| `Match` | **Vidas iniciales** (`StartLives`) y pausa antes de reiniciar |
+| `Match` | **Puntos iniciales** (`StartLives`) y pausa antes de reiniciar |
 | `Camera` | Altura, distancia y campo de visión de la cámara |
 | `Sides` | Nombre y color de cada lado |
 
@@ -117,11 +126,13 @@ plana). Para más caos todavía: baja `Step` (cambia de idea más a menudo), sub
 más rápido) o sube `MaxDegrees`. Por encima de ~18° el muro cercano ya tapa parte
 del suelo: si lo subes, sube también `Camera.Height`.
 
-Ojo con el pico de bolas: con `MaxAlive = 100` las bolas entran en tandas y las
-**30 vidas se agotan en segundos**. Si quieres partidas más largas, sube
-`Match.StartLives`, baja `Ball.MaxAlive` o alarga `Ball.GrowEvery`. El golpe de
-la pala acelera aún más la cosa: si ves que las vidas vuelan, baja `Hit.Speed`
-(150 por defecto, sobre un tope de bola de 180) o sube `Match.StartLives`.
+Ojo con el pico de bolas: con `MaxAlive = 100` las bolas entran en tandas y los
+**30 puntos se agotan en segundos**. Si quieres rondas más largas, sube
+`Match.StartLives`, baja `Ball.MaxAlive` o alarga `Ball.GrowEvery`. Como ahora el
+eliminado se queda fuera hasta que acaba la ronda, si te resulta duro sube los
+puntos iniciales. Y si quieres algo más parecido a una mesa de pinball de verdad,
+baja `Ball.MaxAlive` a 10-15 (Ballistix llega a 7-8 bolas) y pon `Ball.SpeedRamp`
+en 0 si no te gusta que aceleren solas.
 
 Ojo: subir `GoalWidth` es seguro, pero si cambias `Arena.Size` tienes que reescalar
 a mano `Slide.LaneDistance` y `Slide.LaneLimit` para que la línea del jugador siga
@@ -211,6 +222,16 @@ python tools/build.py
   inclinación. El desvío se calcula con la punta de la pala con la que se golpea
   (`lp.X`), así que se puede apuntar a un lado o a otro. Cada bola lleva un
   enfriamiento (`Hit.Cooldown`) para que no se re-dispare sola.
+- El **pulso de energía** abre una ventana de `Hit.PulseWindow` segundos al pulsar
+  el remote `Pulse`: la bola que llegue dentro de esa ventana sale a `Hit.Power`
+  (180, el tope) en vez de a `Hit.Speed` (120). Si la ventana se cierra sin tocar
+  nada, el servidor bloquea el pulso `Hit.PulseLock` segundos y avisa al cliente.
+- **Eliminación**: al llegar a 0 el servidor marca el lado como fuera, hace explotar
+  el rectángulo (`Explosion` con presión y radio 0: solo el fogonazo), pone al
+  jugador el atributo `Out` (el cliente deja de mover la pala) y lo manda a la grada
+  con `LoadCharacter`, donde `setupCharacter` lo detecta y le deja caminar. Cuando
+  queda uno solo se acaba la ronda y, tras `Match.EndPause`, se recargan todos los
+  personajes.
 - El personaje es la "pala": `WalkSpeed = 0`, sin salto, sin auto-rotación, con
   `PlatformStand` activado y con la velocidad lateral impuesta por el controlador.
 - Los scripts usan sintaxis compatible con Lua 5.1/Luau y se validaron con un

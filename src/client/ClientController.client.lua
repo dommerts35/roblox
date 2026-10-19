@@ -75,7 +75,7 @@ help.Font = Enum.Font.GothamMedium
 help.TextSize = 16
 help.TextColor3 = Color3.fromRGB(220, 225, 235)
 help.TextStrokeTransparency = 0.6
-help.Text = "A / D o flechas para deslizarte  -  cada bola que entre en tu porteria te cuesta 1 vida"
+help.Text = "A / D o flechas: deslizate  -  Espacio o Cuadrado: pulso  -  1 bola en tu porteria = 1 vida"
 help.Parent = gui
 
 local cells = {}
@@ -152,11 +152,11 @@ local function updateState(state)
 	for i, info in ipairs(state) do
 		local cell = cells[i]
 		if cell then
-			cell.lives.Text = tostring(info.lives)
-			cell.lives.TextColor3 = info.lives <= 5
+			cell.lives.Text = info.out and "--" or tostring(info.lives)
+			cell.lives.TextColor3 = (info.out or info.lives <= 5)
 					and Color3.fromRGB(255, 85, 85)
 				or Color3.fromRGB(255, 255, 255)
-			cell.player.Text = info.player or "libre"
+			cell.player.Text = info.out and "eliminado" or (info.player or "libre")
 			local mine = player:GetAttribute("Side") == i
 			cell.frame.BackgroundColor3 = mine and Color3.fromRGB(54, 62, 82) or Color3.fromRGB(30, 34, 44)
 		end
@@ -284,11 +284,35 @@ local function drivePaddle(side, dir)
 	end
 end
 
+-- Pulso de energia -----------------------------------------------------
+-- El "extra kick" de Ballistix: se pulsa en el momento justo y la proxima
+-- bola sale disparada. Si se gasta sin tocar nada, el servidor lo bloquea.
+
+local pulseRemote = Remotes:WaitForChild("Pulse")
+local lastPulse = 0
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+	if input.KeyCode ~= Enum.KeyCode.Space
+		and input.KeyCode ~= Enum.KeyCode.ButtonX then
+		return
+	end
+	if not player:GetAttribute("Side") or player:GetAttribute("Out") then return end
+
+	local now = os.clock()
+	if now - lastPulse < 0.15 then return end
+	lastPulse = now
+	pulseRemote:FireServer()
+end)
+
 RunService.RenderStepped:Connect(function()
 	local side = player:GetAttribute("Side")
 	if not side then return end
 
 	updateCamera(side)
+
+	-- Eliminado: se queda mirando la mesa desde su lado, sin pala.
+	if player:GetAttribute("Out") then return end
 
 	if side ~= lastSide then
 		lastSide = side
@@ -310,13 +334,19 @@ GameEvent.OnClientEvent:Connect(function(kind, data)
 		local side = data.side
 		flashMessage("-1 vida para " .. SIDES[side].Name, SIDES[side].Color, 1.4)
 	elseif kind == "GameOver" then
-		local out = data.out
 		local winner = data.winner
-		local texto = SIDES[out].Name .. " se queda sin vidas"
-		if winner and winner ~= out then
-			texto = texto .. " - gana " .. SIDES[winner].Name
+		if winner then
+			flashMessage("Gana " .. SIDES[winner].Name, SIDES[winner].Color, Config.Match.EndPause)
+		else
+			flashMessage("Fin de la ronda", Color3.fromRGB(255, 255, 255), Config.Match.EndPause)
 		end
-		flashMessage(texto, SIDES[out].Color, Config.Match.EndPause)
+	elseif kind == "Eliminated" then
+		local side = data.side
+		flashMessage(SIDES[side].Name .. " eliminado", SIDES[side].Color, 2.2)
+	elseif kind == "Pulse" then
+		if data.side == player:GetAttribute("Side") and data.state == "miss" then
+			flashMessage("Pulso fallado: bloqueado", Color3.fromRGB(255, 150, 80), 1.2)
+		end
 	elseif kind == "Reset" then
 		flashMessage("Nueva partida", Color3.fromRGB(255, 255, 255), 2)
 	end

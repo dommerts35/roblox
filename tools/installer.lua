@@ -90,6 +90,11 @@ do
 	local events = Instance.new("RemoteEvent")
 	events.Name = "GameEvent"
 	events.Parent = remotes
+
+	-- Pulso de energia (el "extra kick" de Ballistix).
+	local pulse = Instance.new("RemoteEvent")
+	pulse.Name = "Pulse"
+	pulse.Parent = remotes
 end
 
 -- 4. Arena -------------------------------------------------------------
