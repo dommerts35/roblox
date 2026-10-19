@@ -24,8 +24,6 @@ Config.Slide = {
 	Speed = 62,             -- studs/segundo de deslizamiento lateral
 	LaneDistance = 46,      -- distancia del centro a la linea del jugador
 	LaneLimit = 32,         -- maximo |coordenada| a lo largo de la linea
-	ReturnStiffness = 9,    -- fuerza con la que vuelve a su linea
-	ReturnMax = 34,         -- limite de la correccion
 	ResetMargin = 14,       -- margen antes de recolocar al jugador
 }
 

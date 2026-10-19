@@ -310,9 +310,19 @@ local function readDirection()
 end
 
 local lastSide = nil
+local laneAlong = 0  -- coordenada de la pala a lo largo de su linea
+
+-- Al reaparecer, el servidor deja la pala en el centro de su linea.
+player.CharacterAdded:Connect(function()
+	laneAlong = 0
+end)
 
 -- El cliente mueve su propio personaje (la pala) para que sea inmediato.
-local function drivePaddle(side, dir)
+-- La posicion la manda el jugador y nadie mas: el eje de su linea lo mueve
+-- el, y la distancia a la mesa va clavada. Asi una bola rapida no puede
+-- apartar la pala de su sitio (la fisica del cliente la empuja dentro del
+-- frame, pero aqui se vuelve a colocar antes de dibujar).
+local function drivePaddle(side, dir, dt)
 	local character = player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart")
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
@@ -322,32 +332,14 @@ local function drivePaddle(side, dir)
 	local along = rot.RightVector    -- eje del lado
 	local outward = -rot.LookVector  -- del centro hacia el lado
 
-	local pos = root.Position
-	local a = pos:Dot(along)
-	local p = pos:Dot(outward)
-
-	-- Vuelve a su linea y no se sale por los extremos.
-	local perr = (SLIDE.LaneDistance - p) * SLIDE.ReturnStiffness
-	perr = math.clamp(perr, -SLIDE.ReturnMax, SLIDE.ReturnMax)
-
-	local aerr = 0
-	if a > SLIDE.LaneLimit then
-		aerr = (SLIDE.LaneLimit - a) * SLIDE.ReturnStiffness
-	elseif a < -SLIDE.LaneLimit then
-		aerr = (-SLIDE.LaneLimit - a) * SLIDE.ReturnStiffness
-	end
-	aerr = math.clamp(aerr, -SLIDE.ReturnMax, SLIDE.ReturnMax)
-
-	local target = along * (dir * SLIDE.Speed + aerr) + outward * perr
-
-	-- Solo se mueve en horizontal: la vertical la manda el pegamento al
-	-- suelo, asi que ni la gravedad ni un tiron de la mesa la levantan.
-	root.AssemblyLinearVelocity = Vector3.new(target.X, 0, target.Z)
+	local step = math.min(dt or 0, 0.1)
+	laneAlong = math.clamp(laneAlong + dir * SLIDE.Speed * step, -SLIDE.LaneLimit, SLIDE.LaneLimit)
+	local flat = along * laneAlong + outward * SLIDE.LaneDistance
 
 	-- Pega la pala a la mesa: los pies sobre la superficie y la pala
 	-- tumbada con la misma inclinacion que el suelo (asi no se hunde un
 	-- borde ni se queda flotando el otro).
-	local hit = groundBelow(pos.X, pos.Z)
+	local hit = groundBelow(flat.X, flat.Z)
 	if hit then
 		local up = hit.Normal
 		-- El eje de la linea proyectado sobre el plano del suelo.
@@ -361,12 +353,16 @@ local function drivePaddle(side, dir)
 			or (humanoid.HipHeight + root.Size.Y / 2)
 		local y = hit.Position.Y + GROUND_CLEARANCE + feet
 		root.CFrame = CFrame.fromMatrix(
-			Vector3.new(pos.X, y, pos.Z), right, up, right:Cross(up)
+			Vector3.new(flat.X, y, flat.Z), right, up, right:Cross(up)
 		)
 	else
 		-- Sin suelo debajo (no deberia pasar): recta donde estaba.
-		root.CFrame = CFrame.new(pos) * rot.Rotation
+		root.CFrame = CFrame.new(flat) * rot.Rotation
 	end
+
+	-- Sin inercia: los golpes de las bolas no se acumulan ni la desvian.
+	root.AssemblyLinearVelocity = Vector3.zero
+	root.AssemblyAngularVelocity = Vector3.zero
 end
 
 -- Pulso de energia -----------------------------------------------------
@@ -393,7 +389,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	pulseRemote:FireServer()
 end)
 
-RunService.RenderStepped:Connect(function()
+RunService.RenderStepped:Connect(function(dt)
 	local side = player:GetAttribute("Side")
 	if not side then
 		updatePulseBar()
@@ -408,13 +404,14 @@ RunService.RenderStepped:Connect(function()
 
 	if side ~= lastSide then
 		lastSide = side
+		laneAlong = 0
 		local cell = cells[side]
 		if cell then
 			flashMessage("Eres " .. SIDES[side].Name, SIDES[side].Color, 3)
 		end
 	end
 
-	drivePaddle(side, readDirection())
+	drivePaddle(side, readDirection(), dt)
 end)
 
 -- Eventos --------------------------------------------------------------

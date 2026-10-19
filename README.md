@@ -155,10 +155,11 @@ Ojo: subir `GoalWidth` es seguro, pero si cambias `Arena.Size` tienes que reesca
 a mano `Slide.LaneDistance` y `Slide.LaneLimit` para que la línea del jugador siga
 dentro de los muros y no choque con los pilares.
 
-El ancho de la pala y `Slide.LaneLimit` van juntos: `32 + 14/2 + 3,8` (el muelle
-puede pasarse 3,8 studs) se queda en 42,8, y la pala del lado vecino empieza en
-44,5. Si ensanchas `Paddle.Width` o subes `LaneLimit`, dos palas vecinas pueden
-llegar a tocarse en las esquinas.
+El ancho de la pala y `Slide.LaneLimit` van juntos: la pala se queda en `32 + 14/2`
+= 39 studs del centro, y la del lado vecino empieza en 44,5, así que hay 5,5 de
+margen (la pala ya no se pasa del límite: no hay muelle que la empuje). Si ensanchas
+`Paddle.Width` o subes `LaneLimit`, dos palas vecinas pueden llegar a tocarse en las
+esquinas.
 
 La mesa mide ahora **130 studs de lado** (antes 180), con el hueco de portería a 42,
 la línea del jugador a 46 del centro y los pilares a 12 del borde.
@@ -221,14 +222,16 @@ python tools/build.py
 - El servidor no adivina la altura del rig: guarda en el atributo `FeetOffset`
   cuánto hay del root a la planta de los pies (medido con el *bounding box*), y ese
   valor sirve igual para personajes R6 y R15.
-- Los jugadores **no resbalan** con la inclinación: el controlador fija cada frame
-  su velocidad en el plano XZ y su posición vertical, así que ni la componente
-  horizontal ni la vertical de la gravedad les afecta.
-- El deslizamiento lo resuelve **el cliente** (respuesta inmediata) escribiendo
-  `AssemblyLinearVelocity` sobre su propio personaje; el servidor comprueba cada
-  0,5 s que nadie se salga de su zona (ni a lo largo, ni hacia fuera, ni en altura)
-  y lo devuelve a su línea, teniendo en cuenta la inclinación actual para no dejarlo
-  bajo el suelo.
+- Los jugadores **no resbalan** con la inclinación: el controlador coloca cada frame
+  la pala en su sitio (posición en el plano XZ y altura sobre el suelo), así que ni
+  la componente horizontal ni la vertical de la gravedad les afecta.
+- El deslizamiento lo resuelve **el cliente** (respuesta inmediata) por **posición**,
+  no por velocidad: cada frame recoloca su personaje en la línea de su lado y le pone
+  la velocidad a cero. Así una bola rápida no puede **apartar la pala de su sitio**
+  (la física la empuja dentro del frame, pero se vuelve a colocar antes de dibujar) y
+  los golpes no se acumulan. El servidor comprueba cada 0,5 s que nadie se salga de
+  su zona (ni a lo largo, ni hacia fuera, ni en altura) y lo devuelve a su línea,
+  teniendo en cuenta la inclinación actual para no dejarlo bajo el suelo.
 - Las **bolas y su física son del servidor**, así que todos ven los mismos
   rebotes y goles. Su velocidad está topada en `Config.Ball.MaxSpeed` para que no
   atraviesen los muros a alta velocidad.
@@ -262,6 +265,6 @@ python tools/build.py
   queda uno solo se acaba la ronda y, tras `Match.EndPause`, se recargan todos los
   personajes.
 - El personaje es la "pala": `WalkSpeed = 0`, sin salto, sin auto-rotación, con
-  `PlatformStand` activado y con la velocidad lateral impuesta por el controlador.
+  `PlatformStand` activado y con la posición impuesta por el controlador.
 - Los scripts usan sintaxis compatible con Lua 5.1/Luau y se validaron con un
   parser antes de generar el instalador.
