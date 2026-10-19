@@ -96,11 +96,13 @@ que ves en pantalla, así que "izquierda en pantalla" siempre es la misma tecla.
   una bola cerca (es el "extra kick" de Ballistix).
 - **Puntos y eliminación**: cada jugador empieza con **30 puntos**. Cada bola que
   entra en su portería le quita **1**, la haya metido quien la haya metido (los
-  autogoles cuentan igual).
+  autogoles cuentan igual). Las porterías **sin jugador no restan nada**: nadie las
+  defiende, así que sus goles no eliminan a nadie ni dan la ronda por ganada.
 - Cuando alguien se queda a **0, su nave explota y queda eliminado**: sigue mirando
-  la mesa desde su lado, pero ya no juega. **Gana el último que quede** y, tras unos
-  segundos, todos vuelven a 30 y el contador de bolas otra vez a 3-5. No hay límite
-  de tiempo.
+  la mesa desde su lado, pero ya no juega. **Gana el último que quede con puntos** y,
+  tras unos segundos, todos vuelven a 30 y el contador de bolas otra vez a 3-5. No
+  hay límite de tiempo. La ronda solo se cierra si había **dos o más jugadores**: si
+  estás probando tú solo, la partida no se acaba.
 - Si entran más de 4 jugadores, los extra aparecen como **espectadores** en la
   grada (pueden caminar por ahí).
 

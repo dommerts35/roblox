@@ -513,10 +513,25 @@ end
 -- Como en Ballistix: el que se queda a 0 puntos explota y queda fuera de
 -- la mesa, y gana el ultimo que siga jugando. No hay limite de tiempo.
 
+-- Lados que siguen en juego: con dueno, con puntos y sin haber caido. Una
+-- porteria vacia no cuenta: si nadie la defiende no compite, y sus goles no
+-- pueden dar por ganada la ronda a otro.
 local function aliveSides()
-	local n = 0
+	local count, last = 0, nil
 	for i = 1, #SIDES do
 		if sideOwner[i] and lives[i] > 0 and not eliminated[i] then
+			count = count + 1
+			last = i
+		end
+	end
+	return count, last
+end
+
+-- Cuantos lados tienen jugador ahora mismo (caidos o no).
+local function occupiedSides()
+	local n = 0
+	for i = 1, #SIDES do
+		if sideOwner[i] then
 			n = n + 1
 		end
 	end
@@ -580,14 +595,12 @@ local function eliminateSide(side)
 
 	broadcast("Eliminated", { side = side })
 
-	if aliveSides() <= 1 then
-		local winner = nil
-		for i = 1, #SIDES do
-			if sideOwner[i] and lives[i] > 0 then
-				winner = i
-			end
-		end
-		endRound(winner)
+	-- La ronda solo se acaba cuando de verdad hay partida (dos o mas lados
+	-- ocupados) y queda uno solo en pie. Si juegas tu solo no se acaba nunca:
+	-- no hay a quien ganar.
+	local alive, last = aliveSides()
+	if alive <= 1 and occupiedSides() >= 2 then
+		endRound(last)
 	end
 
 	-- Reaparece como espectador (setupCharacter lo detecta).
@@ -597,8 +610,10 @@ local function eliminateSide(side)
 end
 
 -- Cualquier bola que entre en una porteria le quita una vida a su dueno.
+-- Si la porteria esta vacia no resta nada: nadie la defiende, asi que sus
+-- goles no pueden eliminar a nadie ni dar la ronda por ganada.
 local function onGoal(ball, ownerSide)
-	if lives[ownerSide] and not matchOver then
+	if sideOwner[ownerSide] and lives[ownerSide] and not matchOver then
 		lives[ownerSide] = math.max(0, lives[ownerSide] - 1)
 		broadcast("Life", { side = ownerSide, lives = lives[ownerSide] })
 		broadcastState()
@@ -892,6 +907,11 @@ local function freeSide()
 			eliminated[i] = nil
 			pulseUntil[i] = nil
 			pulseLock[i] = nil
+			-- Un lado que ya habia caido vuelve con sus puntos: el que llega
+			-- no hereda una porteria a 0.
+			if not lives[i] or lives[i] <= 0 then
+				lives[i] = MATCH.StartLives
+			end
 			return i
 		end
 	end
