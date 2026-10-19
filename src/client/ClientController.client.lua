@@ -152,11 +152,15 @@ local function updateState(state)
 	for i, info in ipairs(state) do
 		local cell = cells[i]
 		if cell then
-			cell.lives.Text = info.out and "--" or tostring(info.lives)
+			-- Un lado sin jugador nunca se marca como "eliminado": se queda
+			-- como libre aunque sus puntos hayan llegado a 0.
+			local ownerless = not info.player
+			local down = info.out and not ownerless
+			cell.lives.Text = down and "--" or tostring(info.lives)
 			cell.lives.TextColor3 = (info.out or info.lives <= 5)
 					and Color3.fromRGB(255, 85, 85)
 				or Color3.fromRGB(255, 255, 255)
-			cell.player.Text = info.out and "eliminado" or (info.player or "libre")
+			cell.player.Text = down and "eliminado" or (info.player or "libre")
 			local mine = player:GetAttribute("Side") == i
 			cell.frame.BackgroundColor3 = mine and Color3.fromRGB(54, 62, 82) or Color3.fromRGB(30, 34, 44)
 		end

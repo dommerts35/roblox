@@ -527,16 +527,6 @@ local function aliveSides()
 	return count, last
 end
 
--- Cuantos lados tienen jugador ahora mismo (caidos o no).
-local function occupiedSides()
-	local n = 0
-	for i = 1, #SIDES do
-		if sideOwner[i] then
-			n = n + 1
-		end
-	end
-	return n
-end
 
 local function restartRound()
 	for i = 1, #SIDES do
@@ -576,30 +566,38 @@ local function eliminateSide(side)
 	pulseLock[side] = nil
 
 	local player = sideOwner[side]
+
+	-- Solo hay "eliminacion" de verdad si hay jugador detras: una porteria
+	-- vacia que se queda a 0 deja de contar y ya esta (no hay nave que
+	-- reventar ni a quien avisar).
 	if player then
 		player:SetAttribute("Out", true)
+
+		-- La nave explota: fogonazo sin fuerza, no empuja nada.
+		local pad = paddles[side]
+		if pad and pad.Parent then
+			local boom = Instance.new("Explosion")
+			boom.Position = pad.Position
+			boom.BlastPressure = 0
+			boom.BlastRadius = 6
+			boom.DestroyJointRadiusPercent = 0
+			boom.Parent = Workspace
+			pad:Destroy()
+		end
+		paddles[side] = nil
+
+		broadcast("Eliminated", { side = side })
 	end
 
-	-- La nave explota: fogonazo sin fuerza, no empuja nada.
-	local pad = paddles[side]
-	if pad and pad.Parent then
-		local boom = Instance.new("Explosion")
-		boom.Position = pad.Position
-		boom.BlastPressure = 0
-		boom.BlastRadius = 6
-		boom.DestroyJointRadiusPercent = 0
-		boom.Parent = Workspace
-		pad:Destroy()
-	end
-	paddles[side] = nil
+	-- El estado va DESPUES de marcar la caida: si no, el marcador del
+	-- eliminado se queda mostrando sus puntos en vez de "--".
+	broadcastState()
 
-	broadcast("Eliminated", { side = side })
-
-	-- La ronda solo se acaba cuando de verdad hay partida (dos o mas lados
-	-- ocupados) y queda uno solo en pie. Si juegas tu solo no se acaba nunca:
-	-- no hay a quien ganar.
+	-- La ronda solo se acaba cuando cae un jugador de verdad y ya no queda
+	-- ninguno mas con puntos. Si la que se queda a 0 es una porteria vacia no
+	-- se acaba nada: no hay nadie a quien dar por ganador.
 	local alive, last = aliveSides()
-	if alive <= 1 and occupiedSides() >= 2 then
+	if player and alive <= 1 then
 		endRound(last)
 	end
 
@@ -609,11 +607,12 @@ local function eliminateSide(side)
 	end
 end
 
--- Cualquier bola que entre en una porteria le quita una vida a su dueno.
--- Si la porteria esta vacia no resta nada: nadie la defiende, asi que sus
--- goles no pueden eliminar a nadie ni dar la ronda por ganada.
+-- Cualquier bola que entre en una porteria le quita una vida a su dueno,
+-- este ocupada o no: el marcador tiene que ensenar el peligro real de cada
+-- lado. Una porteria vacia que llega a 0 se queda fuera sin "eliminar" a
+-- nadie (no hay jugador detras), y si luego entra alguien recupera puntos.
 local function onGoal(ball, ownerSide)
-	if sideOwner[ownerSide] and lives[ownerSide] and not matchOver then
+	if lives[ownerSide] and not matchOver and not eliminated[ownerSide] then
 		lives[ownerSide] = math.max(0, lives[ownerSide] - 1)
 		broadcast("Life", { side = ownerSide, lives = lives[ownerSide] })
 		broadcastState()
@@ -1118,11 +1117,15 @@ local function updateState(state)
 	for i, info in ipairs(state) do
 		local cell = cells[i]
 		if cell then
-			cell.lives.Text = info.out and "--" or tostring(info.lives)
+			-- Un lado sin jugador nunca se marca como "eliminado": se queda
+			-- como libre aunque sus puntos hayan llegado a 0.
+			local ownerless = not info.player
+			local down = info.out and not ownerless
+			cell.lives.Text = down and "--" or tostring(info.lives)
 			cell.lives.TextColor3 = (info.out or info.lives <= 5)
 					and Color3.fromRGB(255, 85, 85)
 				or Color3.fromRGB(255, 255, 255)
-			cell.player.Text = info.out and "eliminado" or (info.player or "libre")
+			cell.player.Text = down and "eliminado" or (info.player or "libre")
 			local mine = player:GetAttribute("Side") == i
 			cell.frame.BackgroundColor3 = mine and Color3.fromRGB(54, 62, 82) or Color3.fromRGB(30, 34, 44)
 		end
