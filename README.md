@@ -242,6 +242,13 @@ python tools/build.py
 - El **rebote normal es física pura**: el rectángulo choca con la bola y esta sale
   con la velocidad que traiga (por eso las bolas, que aceleran con el tiempo,
   devuelven tiros cada vez más duros). No hay ningún empujón artificial al tocarla.
+- La pala es **gruesa a propósito** (`Paddle.Depth = 8`, más que el diámetro de una
+  bola): si fuera más fina que la bola, cuando la pala le cae encima el motor puede
+  empujarla hacia atrás y parece que la atraviesa. Aun así, cada frame el servidor
+  comprueba si alguna bola ha quedado **dentro de la caja de la pala** (`paddleSave`)
+  y, si es así, la saca por la cara que mira al centro y le devuelve el rebote.
+  Como la pala la mueve el cliente, el servidor la ve con retraso; con esto se
+  comporta como un muro igualmente.
 - El **pulso** sí es artificial y va por posición, con la bola pasada al espacio de
   la pala (`PointToObjectSpace`): las que estén delante de la cara que mira al
   centro, dentro del ancho y el alto y a menos de `Hit.Reach` studs, reciben una

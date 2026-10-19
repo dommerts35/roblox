@@ -68,7 +68,10 @@ Config.Ball = {
 Config.Paddle = {
 	Width = 14,             -- largo a lo largo de la linea del jugador
 	Height = 9,             -- alto
-	Depth = 3,              -- grosor (hacia el centro de la mesa)
+	-- Grosor hacia el centro de la mesa. Gruesa a proposito: una bola de 7
+	-- studs a 180 studs/s avanza 3 por frame, y con una pala mas fina que la
+	-- bola el motor la empujaba hacia atras (parecia atravesarla).
+	Depth = 8,
 	Gap = 0.5,              -- hueco bajo la pala, para que las piernas toquen
 }
 

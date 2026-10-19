@@ -500,6 +500,45 @@ local function paddlePulses()
 	end
 end
 
+-- La pala como muro -----------------------------------------------------
+-- La pala va soldada a un personaje del cliente, asi que el servidor la ve
+-- con un poco de retraso y una bola rapida puede quedar dentro de ella
+-- antes de que la fisica reaccione (y salir por detras, como si la
+-- atravesara). Si eso pasa, sacamos la bola por la cara delantera y le
+-- devolvemos el rebote que habria dado, sin empujon extra.
+local function paddleSave(ball)
+	local r = ball.Size.X / 2
+	local halfX = PADDLE.Width / 2
+	local halfY = PADDLE.Height / 2
+	local halfZ = PADDLE.Depth / 2
+	local contact = -(halfZ + r)   -- cara delantera, contando el radio
+
+	for side = 1, #SIDES do
+		local pad = paddles[side]
+		if pad and pad.Parent then
+			local cf = pad.CFrame
+			local lp = cf:PointToObjectSpace(ball.Position)
+
+			-- Solo la mitad de delante: por detras de la pala tambien puede
+			-- entrar una bola rodando por el lado, y esa no se toca.
+			if lp.Z > contact + 0.05 and lp.Z < 0
+				and math.abs(lp.X) < halfX + r
+				and math.abs(lp.Y) < halfY + r then
+
+				local vel = cf:VectorToObjectSpace(ball.AssemblyLinearVelocity)
+				ball.CFrame = CFrame.new(cf * Vector3.new(lp.X, lp.Y, contact))
+
+				-- Si venia hacia la porteria, rebota como en la pala.
+				if vel.Z > 0 then
+					vel = Vector3.new(vel.X, vel.Y, -vel.Z * BALL.Elasticity)
+					ball.AssemblyLinearVelocity = cf:VectorToWorldSpace(vel)
+				end
+				return
+			end
+		end
+	end
+end
+
 -- Red de seguridad del suelo -------------------------------------------
 -- La mesa no se simula: se mueve con PivotTo por debajo de las bolas, asi
 -- que en un tiron fuerte una bola puede quedarse dentro del suelo. Ahora
@@ -533,6 +572,7 @@ RunService.Heartbeat:Connect(function()
 					ball.AssemblyLinearVelocity = vel * (BALL.MaxSpeed / speed)
 				end
 				keepOnTable(ball)
+				paddleSave(ball)
 			end
 		end
 	end
