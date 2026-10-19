@@ -447,7 +447,6 @@ local function paddlePulses()
 	if not HIT.Enabled then return end
 
 	local now = time()
-	local front = -(PADDLE.Depth / 2)      -- cara delantera, en local
 	local halfW = PADDLE.Width / 2
 	local halfH = PADDLE.Height / 2
 
@@ -473,12 +472,16 @@ local function paddlePulses()
 					if ball:IsA("BasePart") then
 						local r = ball.Size.X / 2
 						local lp = cf:PointToObjectSpace(ball.Position)
+						-- Donde toca la bola con la cara delantera, contando
+						-- su radio (la pala es gruesa: el contacto no es el
+						-- centro, sino media pala mas el radio de la bola).
+						local contact = -(PADDLE.Depth / 2 + r)
 
-						-- Delante de la cara delantera, a lo sumo Reach
-						-- studs por delante (asi no se le escapa una bola
-						-- rapida) y dentro del ancho y el alto de la pala.
-						if lp.Z <= front + r
-							and lp.Z >= front - r - HIT.Reach
+						-- Desde ahi hasta Reach studs por delante, dentro del
+						-- ancho y el alto. El medio stud de holgura es para
+						-- los golpes justo al rebotar.
+						if lp.Z <= contact + 0.5
+							and lp.Z >= contact - HIT.Reach
 							and math.abs(lp.X) <= halfW + r
 							and math.abs(lp.Y) <= halfH + r then
 							local aim = math.clamp(lp.X / halfW, -1, 1)
