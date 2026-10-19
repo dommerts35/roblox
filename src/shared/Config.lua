@@ -71,19 +71,16 @@ Config.Paddle = {
 }
 
 -- Golpe de la pala -----------------------------------------------------
--- Cuando la cara delantera de la pala (la que mira al centro de la mesa)
--- toca una bola, el servidor la lanza hacia el centro con fuerza. El punto
--- del ancho donde le da desvia el tiro, asi que se puede apuntar.
+-- La pala rebota las bolas con su propia fisica; el unico golpe fuerte es
+-- el pulso de energia. Se pulsa en el momento justo y la bola sale
+-- disparada hacia el centro (el punto del ancho donde le da desvia el tiro).
 Config.Hit = {
 	Enabled = true,
-	Speed = 120,            -- rebote normal de la pala (studs/segundo)
+	Power = 180,            -- velocidad del golpe con el pulso cargado
 	Aim = 70,               -- desvio maximo al golpear en un extremo de la pala
 	Reach = 4,              -- studs por delante de la cara que cuentan como toque
-	Cooldown = 0.15,        -- segundos entre dos golpes a la misma bola
-	-- Pulso de energia: el golpe fuerte de Ballistix. Se pulsa en el
-	-- momento justo; si se gasta sin tocar ninguna bola, queda bloqueado
-	-- un rato (por eso conviene esperar a tener una cerca).
-	Power = 180,            -- velocidad del golpe con el pulso cargado
+	-- El pulso se carga una ventana corta; si se gasta sin tocar ninguna
+	-- bola queda bloqueado un rato (por eso conviene esperar a tener una cerca).
 	PulseWindow = 0.3,      -- segundos que el pulso esta cargado esperando bola
 	PulseLock = 3,          -- segundos de bloqueo si se falla el pulso
 }

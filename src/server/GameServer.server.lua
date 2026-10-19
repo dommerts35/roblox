@@ -407,17 +407,17 @@ local function goalSideOf(ball)
 	return nil
 end
 
--- Golpes de la pala ----------------------------------------------------
--- La cara delantera de la pala es la que mira al centro de la mesa. Se
--- mira por posicion (igual que los goles): se pasa la bola al espacio de
--- la pala y, si esta dentro del ancho y del alto y a menos de Reach studs
--- de esa cara, sale disparada hacia el centro. Como la pala va tumbada
--- con la mesa, su LookVector sigue el plano del suelo, asi que el tiro
--- sale en la direccion buena con cualquier inclinacion.
--- El punto del ancho donde le da desvia el tiro a un lado o a otro, de
--- modo que el jugador puede apuntar golpeando con una punta de la pala.
+-- Pulso de energia -----------------------------------------------------
+-- La pala NO lanza sola: cuando toca una bola, la bola rebota como en
+-- cualquier otra superficie. El golpe fuerte es solo el pulso (Espacio /
+-- Cuadrado), igual que en Ballistix: se carga una ventana corta y, si
+-- llega una bola, sale disparada hacia el centro.
+-- Se mira por posicion (igual que los goles), pasando la bola al espacio
+-- de la pala. Como la pala va tumbada con la mesa, su LookVector sigue el
+-- plano del suelo, asi que el tiro sale bien con cualquier inclinacion.
+-- La punta con la que se golpea desvia el tiro a un lado o a otro.
 
-local function paddleHits()
+local function paddlePulses()
 	if not HIT.Enabled then return end
 
 	local now = time()
@@ -439,48 +439,45 @@ local function paddleHits()
 				end
 			end
 
-			local cf = pad.CFrame
-			local powered = pulseUntil[side] ~= nil
-			local speed = powered and HIT.Power or HIT.Speed
+			if pulseUntil[side] then
+				local cf = pad.CFrame
+				local hit = false
 
-			for _, ball in ipairs(Balls:GetChildren()) do
-				if ball:IsA("BasePart") then
-					local r = ball.Size.X / 2
-					local lp = cf:PointToObjectSpace(ball.Position)
+				for _, ball in ipairs(Balls:GetChildren()) do
+					if ball:IsA("BasePart") then
+						local r = ball.Size.X / 2
+						local lp = cf:PointToObjectSpace(ball.Position)
 
-					-- Delante de la cara delantera, a lo sumo Reach
-					-- studs por delante (asi no se le escapa una bola
-					-- rapida) y dentro del ancho y el alto de la pala.
-					if lp.Z <= front + r
-						and lp.Z >= front - r - HIT.Reach
-						and math.abs(lp.X) <= halfW + r
-						and math.abs(lp.Y) <= halfH + r then
-						local last = ball:GetAttribute("Golpe")
-						if not last or now - last >= HIT.Cooldown then
-							ball:SetAttribute("Golpe", now)
-
+						-- Delante de la cara delantera, a lo sumo Reach
+						-- studs por delante (asi no se le escapa una bola
+						-- rapida) y dentro del ancho y el alto de la pala.
+						if lp.Z <= front + r
+							and lp.Z >= front - r - HIT.Reach
+							and math.abs(lp.X) <= halfW + r
+							and math.abs(lp.Y) <= halfH + r then
 							local aim = math.clamp(lp.X / halfW, -1, 1)
 							ball.AssemblyLinearVelocity =
-								cf.LookVector * speed
+								cf.LookVector * HIT.Power
 								+ cf.RightVector * (aim * HIT.Aim)
-
-							if powered then
-								pulseUntil[side] = nil
-								pulseLock[side] = nil
-								broadcast("Pulse", { side = side, state = "hit" })
-							end
+							hit = true
 						end
 					end
+				end
+
+				if hit then
+					pulseUntil[side] = nil
+					pulseLock[side] = nil
+					broadcast("Pulse", { side = side, state = "hit" })
 				end
 			end
 		end
 	end
 end
 
--- Goles, golpes de pala y tope de velocidad de las bolas, una vez por
+-- Goles, pulso de energia y tope de velocidad de las bolas, una vez por
 -- frame.
 RunService.Heartbeat:Connect(function()
-	paddleHits()
+	paddlePulses()
 	for _, ball in ipairs(Balls:GetChildren()) do
 		if ball:IsA("BasePart") then
 			local side = goalSideOf(ball)

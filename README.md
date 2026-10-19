@@ -85,10 +85,11 @@ que ves en pantalla, así que "izquierda en pantalla" siempre es la misma tecla.
   que gira unas **150°/s de media** con picos de más de 600°/s. Nada de vaivenes
   suaves: la gravedad cambia de rumbo sin avisar y las bolas salen disparadas a
   cualquier parte. Los jugadores no resbalan: siguen clavados en su línea.
-- Golpeas la bola con tu rectángulo para despejarla de tu portería. Si le das con
-  una punta, el tiro sale desviado hacia ese lado.
-- **Pulso de energía** (`Espacio` / `Cuadrado`): carga el golpe fuerte. La siguiente
-  bola que toque la cara delantera sale a **180** en vez de a 120. Si lo gastas sin
+- Tu rectángulo **rebota** la bola con su propia física: cuanto más rápida venga,
+  más rápida sale. No hay ningún golpe mágico por el simple hecho de tocarla.
+- **Pulso de energía** (`Espacio` / `Cuadrado`): el único golpe fuerte. Carga una
+  ventana de 0,3 s y la bola que llegue a la cara delantera sale a **180** hacia el
+  centro, desviada hacia el lado de la punta con la que la golpees. Si lo gastas sin
   tocar ninguna bola, queda **bloqueado 3 segundos**, así que conviene pulsarlo con
   una bola cerca (es el "extra kick" de Ballistix).
 - **Puntos y eliminación**: cada jugador empieza con **30 puntos**. Cada bola que
@@ -113,7 +114,7 @@ Todo se controla desde **`src/shared/Config.lua`** (y su copia dentro de
 | `Arena` | Tamaño del cuadrado, alto y grosor de muros, ancho del hueco de portería (`GoalWidth`), pilares |
 | `Slide` | Velocidad de deslizamiento, distancia de la línea, límites laterales |
 | `Paddle` | **Rectángulo de cada jugador**: largo (`Width`), alto (`Height`), grosor (`Depth`) y hueco bajo la pala |
-| `Hit` | **Golpe de la pala**: fuerza del rebote normal (`Speed`), del **pulso** (`Power`, `PulseWindow`, `PulseLock`), cuánto apunta al golpear en una punta (`Aim`), alcance por delante de la cara (`Reach`) y enfriamiento por bola |
+| `Hit` | **Pulso de energía**: fuerza (`Power`), cuánto apunta al golpear en una punta (`Aim`), alcance por delante de la cara (`Reach`), ventana para acertar (`PulseWindow`) y bloqueo al fallar (`PulseLock`) |
 | `Ball` | Bolas iniciales (`StartMin`/`StartMax`), ritmo de subida (`GrowEvery`) y tope (`MaxAlive`), tamaño de lote (`Batch`), velocidad, **aceleración con el tiempo** (`SpeedRamp`), rebote, fricción |
 | `Tilt` | **Inclinación de la mesa**: ángulo mínimo/máximo, cada cuánto cambia (`Step`), fuerza del tirón (`Jitter`), latido (`Pulse`/`WobbleSpeed`), giro base (`TurnSpeed`) y frecuencia de actualización |
 | `Match` | **Puntos iniciales** (`StartLives`) y pausa antes de reiniciar |
@@ -212,20 +213,23 @@ python tools/build.py
   el muro sin caja detrás, y el servidor comprueba cada frame si alguna bola ha
   cruzado el plano del muro dentro del ancho del hueco. Al instante la bola se
   elimina, así que es imposible que rebote y vuelva a salir.
-- El **golpe de la pala** también va por posición, con la bola pasada al espacio de
-  la pala (`PointToObjectSpace`): si está delante de la cara que mira al centro,
-  dentro del ancho y el alto y a menos de `Hit.Reach` studs, el servidor le pone
-  una velocidad nueva hacia el centro. El sensor no se pierde ninguna bola rápida
-  porque el alcance es mayor que lo que avanza una bola en un frame (a
-  `MaxSpeed = 180`, 3 studs por frame). Como el rectángulo va tumbado con la mesa,
-  su `LookVector` sigue el plano del suelo y el tiro sale bien con cualquier
-  inclinación. El desvío se calcula con la punta de la pala con la que se golpea
-  (`lp.X`), así que se puede apuntar a un lado o a otro. Cada bola lleva un
-  enfriamiento (`Hit.Cooldown`) para que no se re-dispare sola.
+- El **rebote normal es física pura**: el rectángulo choca con la bola y esta sale
+  con la velocidad que traiga (por eso las bolas, que aceleran con el tiempo,
+  devuelven tiros cada vez más duros). No hay ningún empujón artificial al tocarla.
+- El **pulso** sí es artificial y va por posición, con la bola pasada al espacio de
+  la pala (`PointToObjectSpace`): las que estén delante de la cara que mira al
+  centro, dentro del ancho y el alto y a menos de `Hit.Reach` studs, reciben una
+  velocidad nueva hacia el centro. El alcance es mayor que lo que avanza una bola en
+  un frame (a `MaxSpeed = 180`, 3 studs por frame), así que no se escapa ninguna.
+  Como el rectángulo va tumbado con la mesa, su `LookVector` sigue el plano del suelo
+  y el tiro sale bien con cualquier inclinación. El desvío se calcula con la punta
+  con la que se golpea (`lp.X`), así que se puede apuntar a un lado o a otro.
 - El **pulso de energía** abre una ventana de `Hit.PulseWindow` segundos al pulsar
-  el remote `Pulse`: la bola que llegue dentro de esa ventana sale a `Hit.Power`
-  (180, el tope) en vez de a `Hit.Speed` (120). Si la ventana se cierra sin tocar
-  nada, el servidor bloquea el pulso `Hit.PulseLock` segundos y avisa al cliente.
+  el remote `Pulse`: las bolas que estén delante de la cara dentro de esa ventana
+  salen a `Hit.Power` (180, el tope) hacia el centro, y la ventana se cierra. Es el
+  único golpe fuerte que hay: lo demás es el rebote físico del rectángulo. Si la
+  ventana se cierra sin tocar nada, el servidor bloquea el pulso `Hit.PulseLock`
+  segundos y avisa al cliente.
 - **Eliminación**: al llegar a 0 el servidor marca el lado como fuera, hace explotar
   el rectángulo (`Explosion` con presión y radio 0: solo el fogonazo), pone al
   jugador el atributo `Out` (el cliente deja de mover la pala) y lo manda a la grada
